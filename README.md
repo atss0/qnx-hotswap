@@ -19,6 +19,8 @@ sees **no failed reads, no lost state and no missed deadlines** during the
 swap; the same driver restarted the conventional way loses 700 ms of samples
 and its calibration on every upgrade.
 
+![Architecture: clients, shell, core v1 and v2](docs/architecture.svg)
+
 ![Simulated accelerometer at 1 kHz: hot swap vs. stop-and-restart](docs/accel-swap-vs-restart.png)
 
 > Status: working prototype for the QNX Global Hackathon (2026).

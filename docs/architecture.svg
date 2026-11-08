@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 420" width="960" height="420" font-family="Segoe UI, Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#444"/>
+    </marker>
+    <marker id="arrowo" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#e08a1e"/>
+    </marker>
+  </defs>
+  <rect width="960" height="420" fill="#ffffff"/>
+
+  <!-- clients -->
+  <g>
+    <rect x="30" y="70" width="170" height="70" rx="10" fill="#eef2f7" stroke="#8aa0b8"/>
+    <text x="115" y="100" text-anchor="middle" font-size="16" font-weight="600" fill="#222">control loop</text>
+    <text x="115" y="122" text-anchor="middle" font-size="13" fill="#555">1 kHz, SCHED_FIFO 50</text>
+    <rect x="30" y="170" width="170" height="70" rx="10" fill="#eef2f7" stroke="#8aa0b8"/>
+    <text x="115" y="200" text-anchor="middle" font-size="16" font-weight="600" fill="#222">other client</text>
+    <text x="115" y="222" text-anchor="middle" font-size="13" fill="#555">same fd all along</text>
+  </g>
+
+  <!-- shell -->
+  <rect x="300" y="60" width="230" height="190" rx="12" fill="#e9f3ea" stroke="#5a9a63" stroke-width="2"/>
+  <text x="415" y="92" text-anchor="middle" font-size="18" font-weight="700" fill="#1f5a28">shell</text>
+  <text x="415" y="116" text-anchor="middle" font-size="14" fill="#1f5a28">owns /dev/accel</text>
+  <text x="415" y="146" text-anchor="middle" font-size="13" fill="#333">forwards reads to the</text>
+  <text x="415" y="164" text-anchor="middle" font-size="13" fill="#333">current core, unchanged</text>
+  <text x="415" y="194" text-anchor="middle" font-size="13" fill="#333">runs swap, probation,</text>
+  <text x="415" y="212" text-anchor="middle" font-size="13" fill="#333">rollback</text>
+  <text x="415" y="236" text-anchor="middle" font-size="12" fill="#666">no driver logic, never restarted</text>
+
+  <!-- client arrows -->
+  <line x1="200" y1="105" x2="296" y2="125" stroke="#444" stroke-width="2" marker-end="url(#arrow)"/>
+  <line x1="200" y1="205" x2="296" y2="185" stroke="#444" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="248" y="152" text-anchor="middle" font-size="12" fill="#555">read()</text>
+
+  <!-- cores -->
+  <rect x="660" y="50" width="250" height="90" rx="12" fill="#eaf1fb" stroke="#2f6db5" stroke-width="2"/>
+  <text x="785" y="80" text-anchor="middle" font-size="17" font-weight="700" fill="#2f6db5">core v1</text>
+  <text x="785" y="102" text-anchor="middle" font-size="13" fill="#333">driver logic + state</text>
+  <text x="785" y="122" text-anchor="middle" font-size="12" fill="#666">calibration, filter, sequence</text>
+
+  <rect x="660" y="180" width="250" height="90" rx="12" fill="#fdf2e6" stroke="#e08a1e" stroke-width="2"/>
+  <text x="785" y="210" text-anchor="middle" font-size="17" font-weight="700" fill="#b56a0d">core v2</text>
+  <text x="785" y="232" text-anchor="middle" font-size="13" fill="#333">new version, initialised</text>
+  <text x="785" y="252" text-anchor="middle" font-size="12" fill="#666">while v1 keeps serving</text>
+
+  <!-- shell to cores -->
+  <line x1="530" y1="120" x2="656" y2="100" stroke="#444" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="590" y="98" text-anchor="middle" font-size="12" fill="#555">MsgSend</text>
+  <line x1="530" y1="190" x2="656" y2="220" stroke="#e08a1e" stroke-width="2" stroke-dasharray="6 4" marker-end="url(#arrowo)"/>
+  <text x="590" y="225" text-anchor="middle" font-size="12" fill="#b56a0d">after swap</text>
+
+  <!-- state transfer -->
+  <line x1="785" y1="142" x2="785" y2="175" stroke="#e08a1e" stroke-width="2.5" marker-end="url(#arrowo)"/>
+  <text x="797" y="164" font-size="12" font-weight="600" fill="#b56a0d">state handover (via shell)</text>
+
+  <!-- steps -->
+  <g font-size="14" fill="#222">
+    <text x="30" y="305" font-weight="700">Upgrade, in one shell request (3-40 µs):</text>
+    <text x="30" y="332">1. core v2 starts and initialises in the background, then registers with the shell</text>
+    <text x="30" y="356">2. shell exports v1's state, imports it into v2 (converting the format if it changed) and switches</text>
+    <text x="30" y="380">3. client reads arriving meanwhile wait in the kernel (SEND-blocked) and are served by v2</text>
+    <text x="30" y="404">4. v1 stays parked on probation: if v2 crashes, the shell restores v1 and retries the read</text>
+  </g>
+</svg>
