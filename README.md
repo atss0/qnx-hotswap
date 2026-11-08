@@ -6,18 +6,53 @@ On QNX, drivers are ordinary user-space processes (resource managers) that
 clients talk to through message passing. `qnx-hotswap` uses that to replace a
 driver with a new version while a real-time client keeps using it:
 
-- a small, stable **shell** process owns the path (for example `/dev/counter`)
+- a small, stable **shell** process owns the path (for example `/dev/accel`)
   and the channel that clients connect to;
 - a swappable **core** process holds the driver logic and its state;
 - on upgrade the shell holds incoming requests, the old core hands its state
-  to the new one, the shell switches over, and the old core exits.
+  to the new one (converting between state formats if the layout changed),
+  the shell switches over, and the old core is kept on probation so a crash
+  of the new version rolls back automatically.
 
-Clients keep the same file descriptor the whole time. The goal is a 1 kHz
-control loop that misses **zero deadlines** during the swap, compared with a
-stop-and-restart upgrade.
+Clients keep the same file descriptor the whole time. A 1 kHz control loop
+sees **no failed reads, no lost state and no missed deadlines** during the
+swap; the same driver restarted the conventional way loses 700 ms of samples
+and its calibration on every upgrade.
 
-> Status: early development for the QNX Global Hackathon (2026).
-> The environment and timing baseline are done; the shell/core swap is next.
+![Simulated accelerometer at 1 kHz: hot swap vs. stop-and-restart](docs/accel-swap-vs-restart.png)
+
+> Status: working prototype for the QNX Global Hackathon (2026).
+
+## Code layout
+
+| File | Role |
+|---|---|
+| `src/shell.c` | the stable resource manager: owns the path, forwards reads, runs swaps, probation and rollback. Knows nothing about the driver. |
+| `src/core_main.c` | host process for a swappable core: registers with the shell, serves its requests through the driver callbacks |
+| `src/mono_main.c` | host for the same driver as a conventional single-process resource manager (the restart baseline) |
+| `src/driver.h` | what a driver implements: `import_state`, `export_state`, `read` and its state formats |
+| `src/accel.c`, `src/accel.h` | accelerometer driver with simulated hardware: calibration, moving-average filter, v2 adds glitch rejection |
+| `src/counter.c`, `src/counter.h` | minimal counter driver |
+| `src/accel_client.c`, `src/client.c` | 1 kHz test clients for the two drivers |
+| `scripts/demo-swap.sh` | runs one scenario on the target (`swap`, `rollback`, `restart`, controls) |
+| `tools/plot.py` | draws the figures from the clients' per-tick CSV files |
+
+Each driver is built from one source file into swappable cores
+(`accel_v1`, `accel_v2`, `accel_v2_bad`) and conventional drivers
+(`accel_mono_v1`, `accel_mono_v2`), so comparisons run identical driver code.
+
+## Building and running the demo
+
+```sh
+source ~/qnx800/qnxsdp-env.sh
+make deploy                 # builds into build/, copies to qnxvm:/tmp/hotswap
+
+# on the target, as root:
+cd /tmp/hotswap
+DRV=accel INIT_MS=200 ./demo-swap.sh 10 swap       # hot swap v1 -> v2 -> v1
+DRV=accel INIT_MS=200 ./demo-swap.sh 10 rollback   # buggy v2 crashes, rolls back
+DRV=accel INIT_MS=200 ./demo-swap.sh 10 restart    # conventional restart
+```
 
 ## Requirements
 
@@ -48,7 +83,7 @@ Guest SSH is forwarded to `127.0.0.1:2223`. With `networkingMode=mirrored` in
 `scripts/run-qemu.sh` boots the same image inside WSL/Linux (KVM if available,
 otherwise emulation), with SSH on port 2222.
 
-## Building and running the examples
+## Building and running the timing example
 
 ```sh
 source ~/qnx800/qnxsdp-env.sh
@@ -100,7 +135,7 @@ The same mechanism handles downgrades (v2 writes format 1 for v1).
 After a swap the old core stays parked for a probation period (2 s by
 default, `shell -t ms`). If the new core fails meanwhile, the shell restores
 the old core from its own state snapshot and retries the failed request
-there. `demo-swap.sh 10 rollback` swaps in `core_v2_bad`, which crashes on
+there. `demo-swap.sh 10 rollback` swaps in `counter_v2_bad`, which crashes on
 its first read:
 
 ```
@@ -121,7 +156,7 @@ handover snapshot.
 ![1 kHz client during two driver upgrades: hot swap vs. stop-and-restart](docs/swap-vs-restart.png)
 
 `restart` mode runs the same counter as a conventional single-process
-resource manager (`mono_vN`) and upgrades it the usual way, by stopping the
+resource manager (`counter_mono_vN`) and upgrades it the usual way, by stopping the
 old process and starting the new one (what a QNX HAM restart action does).
 The client reopens the device when its descriptor goes bad, as a robust
 application would. Both designs get the same simulated hardware
@@ -154,6 +189,33 @@ python3 -m venv .venv && .venv/bin/pip install matplotlib
 With 4 vCPUs at normal host priority the guest saw random 1-4 ms stalls
 (1-15 missed deadlines per 30 s) with or without swaps: host preemption of
 the VM, not the swap.
+
+## Accelerometer driver results
+
+`/dev/accel` is a driver with state that matters: the zero-g bias measured
+at start-up (about 0.5 s of self-test calibration), the sample sequence
+number and the moving-average filter history. Version 2 adds glitch
+rejection, which needs new state fields (state format 2). The hardware is
+simulated with a known true signal, so the client measures the error of
+every sample (see `src/accel.h`).
+
+`DRV=accel INIT_MS=200 ./demo-swap.sh 10 <mode>`, 10 s at 1 kHz, upgrades at
+3 s and 6 s (figure at the top of this page):
+
+| | hot swap | rollback (buggy v2) | stop-and-restart |
+|---|---|---|---|
+| failed reads | **0** | **0** | 1402 (701 per upgrade) |
+| longest outage | **0 ms** | **0 ms** | 701 ms |
+| sequence breaks | 0 | 0 | 2 (restarts at 1) |
+| calibration | inherited | inherited | redone every upgrade (bias 145 → 136 → 129 mg) |
+| missed deadlines | 0 | 0 | 0 (but no data for 701 ms) |
+| switch / rollback time | 24-41 µs | rollback 6 µs, crashed read 272 µs | - |
+
+The restart outage is the 200 ms hardware initialisation plus 500 ms of
+calibration: with hot swap both happen before the switch, while the old
+version is still serving. In the figure the effect of the v2 improvement is
+visible too: v1's output shows the glitches as ±200 mg error spikes, v2's
+does not.
 
 ## License
 

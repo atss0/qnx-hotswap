@@ -29,18 +29,27 @@ FAIL_COLOR = "#d62728"
 
 
 def load(path):
-    """Read a samples CSV into lists of floats/ints, one list per column."""
-    cols = {"t_ms": [], "read_us": [], "late_us": [], "ok": [], "value": [], "version": []}
+    """Read a samples CSV into lists, one list per column.
+
+    Two layouts are understood: the counter client's (value column) and the
+    accelerometer client's (seq, value_mg, truth_mg, err_mg columns). For the
+    accelerometer, "value" is the sequence number, so continuity checks work
+    the same way, and "err" is the measurement error.
+    """
+    cols = {"t_ms": [], "read_us": [], "ok": [], "value": [], "version": [], "err": []}
     with open(path, newline="") as f:
-        for row in csv.DictReader(f):
+        reader = csv.DictReader(f)
+        accel = "err_mg" in reader.fieldnames
+        for row in reader:
             cols["t_ms"].append(float(row["t_ms"]) / 1000.0)   # plot in seconds
             cols["read_us"].append(float(row["read_us"]))
-            cols["late_us"].append(float(row["late_us"]))
             cols["ok"].append(int(row["ok"]))
-            cols["value"].append(int(row["value"]))
+            cols["value"].append(int(row["seq"] if accel else row["value"]))
             cols["version"].append(int(row["version"]))
+            cols["err"].append(int(row["err_mg"]) if accel else 0)
     if not cols["t_ms"]:
         sys.exit(f"{path}: no samples")
+    cols["accel"] = accel
     return cols
 
 
@@ -55,8 +64,8 @@ def summary(c):
             if last_good is not None and v != last_good + 1:
                 resets += 1
             last_good = v
-    worst = max(c["read_us"])
-    return f"{failed} failed reads, {resets} counter breaks, slowest read {worst:.0f} µs"
+    what = "sequence" if c["accel"] else "counter"
+    return f"{failed} failed reads, {resets} {what} breaks"
 
 
 def plot_run(ax_lat, ax_val, title, c):
@@ -84,15 +93,17 @@ def plot_run(ax_lat, ax_val, title, c):
     ax_lat.legend(loc="upper right", bbox_to_anchor=(1.0, 0.86), fontsize=8,
                   markerscale=4, ncol=3, frameon=False)
 
-    # Counter value received; failed reads are left out (no value).
+    # Bottom: counter value received, or for the accelerometer the
+    # measurement error. Failed reads are left out (no value).
+    key = "err" if c["accel"] else "value"
     for ver, color in VERSION_COLORS.items():
         xs = [t[i] for i in range(len(t)) if ok[i] and c["version"][i] == ver]
-        ys = [c["value"][i] for i in range(len(t)) if ok[i] and c["version"][i] == ver]
+        ys = [c[key][i] for i in range(len(t)) if ok[i] and c["version"][i] == ver]
         if xs:
             ax_val.scatter(xs, ys, s=1, color=color)
     for x in fails:
         ax_val.axvline(x, color=FAIL_COLOR, alpha=0.05, lw=1)
-    ax_val.set_ylabel("counter value")
+    ax_val.set_ylabel("measurement error (mg)" if c["accel"] else "counter value")
     ax_val.set_xlabel("time (s)")
 
 
@@ -102,6 +113,8 @@ def main():
     ap.add_argument("--run", nargs=2, action="append", metavar=("TITLE", "CSV"),
                     required=True, help="a run to plot (repeatable)")
     ap.add_argument("--out", required=True, help="output image (.png or .svg)")
+    ap.add_argument("--title", default="1 kHz client reading /dev/counter on QNX 8.0 "
+                    "during two driver upgrades", help="figure title")
     args = ap.parse_args()
 
     runs = [(title, load(path)) for title, path in args.run]
@@ -110,13 +123,15 @@ def main():
                              gridspec_kw={"height_ratios": [3, 2]})
     for col, (title, c) in enumerate(runs):
         plot_run(axes[0][col], axes[1][col], title, c)
-    # Same counter scale for all runs, so a reset is visible side by side.
-    vmax = max(max(c["value"]) for _, c in runs)
-    for col in range(len(runs)):
-        axes[1][col].set_ylim(0, vmax * 1.05)
+    # Same bottom scale for all runs, so differences are visible side by side.
+    for col, (_, c) in enumerate(runs):
+        if c["accel"]:
+            axes[1][col].set_ylim(-400, 400)
+        else:
+            vmax = max(max(r["value"]) for _, r in runs)
+            axes[1][col].set_ylim(0, vmax * 1.05)
 
-    fig.suptitle("1 kHz client reading /dev/counter on QNX 8.0 during two driver upgrades",
-                 fontsize=12)
+    fig.suptitle(args.title, fontsize=12)
     fig.tight_layout()
     fig.savefig(args.out, dpi=150)
     print(f"wrote {args.out}")

@@ -1,9 +1,10 @@
 /*
  * shell.c - the stable half of a hot-swappable QNX driver.
  *
- * The shell is a QNX resource manager that owns /dev/counter. It holds no
- * driver logic: every read() is forwarded to the current "core" process and
- * the core's answer is passed back to the client.
+ * The shell is a QNX resource manager that owns a device path such as
+ * /dev/counter or /dev/accel. It holds no driver logic and does not know the
+ * driver's record or state layout: every read() is forwarded to the current
+ * "core" process and the core's answer is passed back to the client as is.
  *
  * Swap: a new core version announces itself with DCMD_HOTSWAP_REGISTER. The
  * shell takes the state out of the old core (in a format the new core can
@@ -21,7 +22,9 @@
  * Limitation: anything the new core changed before failing is lost; the
  * old core resumes from the handover snapshot.
  *
- * Usage: shell [-t probation_ms]   (default 2000; 0 = retire immediately)
+ * Usage: shell [-n path] [-t probation_ms]
+ *   -n  device path to own (default /dev/counter)
+ *   -t  probation period (default 2000; 0 = retire the old core at once)
  */
 #include <errno.h>
 #include <signal.h>
@@ -56,18 +59,19 @@ static uint64_t now_ns(void)
     return (uint64_t)t.tv_sec * 1000000000ull + (uint64_t)t.tv_nsec;
 }
 
-/* Send one request to a core and wait for its reply. Returns 0 or -1/errno. */
-static int core_call(int coid, enum core_op op, const struct core_state *in,
-                     void *reply, size_t reply_len)
+/* Send one request to a core and wait for its reply. Returns the core's
+ * reply status (for CORE_OP_READ: the record size), or -1 with errno set. */
+static long core_call(int coid, enum core_op op, const struct core_state *in,
+                      void *reply, size_t reply_len)
 {
-    struct core_msg m;
+    static struct core_msg m;   /* single-threaded: one request at a time */
     memset(&m, 0, sizeof m);
     m.type = CORE_MSG_TYPE;
     m.op   = (uint16_t)op;
     if (in) {
         m.state = *in;
     }
-    return MsgSend(coid, &m, sizeof m, reply, reply_len) == -1 ? -1 : 0;
+    return MsgSend(coid, &m, sizeof m, reply, reply_len);
 }
 
 /* Ask a core for its state in the newest format it can write that is not
@@ -126,9 +130,9 @@ static int rollback(int err)
     parked.coid = -1;
 
     printf("shell: ROLLBACK: core v%u (pid %d) failed (%s); v%u (pid %d) "
-           "restored at value %llu in %.1f us\n",
+           "restored from its handover snapshot in %.1f us\n",
            failed.version, failed.pid, strerror(err), cur.version, cur.pid,
-           (unsigned long long)parked_snapshot.value, (now_ns() - t0) / 1000.0);
+           (now_ns() - t0) / 1000.0);
     fflush(stdout);
     return 0;
 }
@@ -154,23 +158,29 @@ static int io_read(resmgr_context_t *ctp, io_read_t *msg, RESMGR_OCB_T *ocb)
         return EAGAIN;              /* no core registered yet */
     }
 
-    struct counter_rec rec;
-    if (core_call(cur.coid, CORE_OP_READ, NULL, &rec, sizeof rec) == -1) {
+    /* The record is opaque to the shell: the core's reply status is its
+     * size, and the bytes are passed on unchanged. */
+    uint8_t rec[CORE_MAX_REPLY];
+    long len = core_call(cur.coid, CORE_OP_READ, NULL, rec, sizeof rec);
+    if (len == -1) {
         int err = errno;
         /* During probation a failure of the new core is answered by rolling
          * back and retrying once on the restored predecessor. */
         if (parked.coid == -1 || rollback(err) == -1 ||
-            core_call(cur.coid, CORE_OP_READ, NULL, &rec, sizeof rec) == -1) {
+            (len = core_call(cur.coid, CORE_OP_READ, NULL, rec, sizeof rec)) == -1) {
             fprintf(stderr, "shell: core v%u (pid %d) read failed: %s\n",
                     cur.version, cur.pid, strerror(err));
             return EIO;
         }
     }
+    if (len > (long)sizeof rec) {
+        len = sizeof rec;
+    }
 
     /* Reply directly: rec lives on this stack frame, so it must be sent
      * before we return (returning an iov would reference freed memory). */
-    size_t n = msg->i.nbytes < sizeof rec ? msg->i.nbytes : sizeof rec;
-    MsgReply(ctp->rcvid, (long)n, &rec, n);
+    size_t n = msg->i.nbytes < (size_t)len ? msg->i.nbytes : (size_t)len;
+    MsgReply(ctp->rcvid, (long)n, rec, n);
     return _RESMGR_NOREPLY;
 }
 
@@ -253,10 +263,11 @@ static int do_swap(resmgr_context_t *ctp, const struct hotswap_register *reg)
     if (old.coid == -1) {
         printf("shell: core v%u (pid %d) attached\n", cur.version, new_pid);
     } else {
-        printf("shell: swapped v%u -> v%u (pid %d), value=%llu, state format "
-               "%u -> %u, switch took %.1f us (export %.1f, import %.1f)\n",
-               old.version, cur.version, new_pid,
-               (unsigned long long)handover.value, snapshot.format, handover.format,
+        printf("shell: swapped v%u -> v%u (pid %d), handed over %u bytes of "
+               "format %u state (v%u's own: format %u), switch took %.1f us "
+               "(export %.1f, import %.1f)\n",
+               old.version, cur.version, new_pid, handover.size, handover.format,
+               old.version, snapshot.format,
                (t2 - t0) / 1000.0, (t1 - t0) / 1000.0, (t2 - t1) / 1000.0);
         parked           = old;
         parked_snapshot  = snapshot;
@@ -308,12 +319,14 @@ static int io_devctl(resmgr_context_t *ctp, io_devctl_t *msg, RESMGR_OCB_T *ocb)
 
 int main(int argc, char **argv)
 {
+    const char *path = "/dev/counter";
     int opt;
-    while ((opt = getopt(argc, argv, "t:")) != -1) {
-        if (opt == 't') {
-            probation_ns = (uint64_t)strtoull(optarg, NULL, 10) * 1000000ull;
-        } else {
-            fprintf(stderr, "usage: %s [-t probation_ms]\n", argv[0]);
+    while ((opt = getopt(argc, argv, "n:t:")) != -1) {
+        switch (opt) {
+        case 'n': path = optarg; break;
+        case 't': probation_ns = (uint64_t)strtoull(optarg, NULL, 10) * 1000000ull; break;
+        default:
+            fprintf(stderr, "usage: %s [-n path] [-t probation_ms]\n", argv[0]);
             return 2;
         }
     }
@@ -342,15 +355,15 @@ int main(int argc, char **argv)
     rattr.nparts_max   = 1;
     rattr.msg_max_size = 2048;
 
-    if (resmgr_attach(dpp, &rattr, HOTSWAP_PATH, _FTYPE_ANY, 0,
+    if (resmgr_attach(dpp, &rattr, path, _FTYPE_ANY, 0,
                       &connect_funcs, &io_funcs, &attr) == -1) {
         fprintf(stderr, "shell: cannot attach %s: %s (needs root or the "
-                "pathspace ability)\n", HOTSWAP_PATH, strerror(errno));
+                "pathspace ability)\n", path, strerror(errno));
         return 1;
     }
 
     printf("shell: serving %s (pid %d), probation %llu ms, waiting for a core\n",
-           HOTSWAP_PATH, getpid(), (unsigned long long)(probation_ns / 1000000ull));
+           path, getpid(), (unsigned long long)(probation_ns / 1000000ull));
     fflush(stdout);
 
     /* Single-threaded receive loop: one request at a time, by design. */

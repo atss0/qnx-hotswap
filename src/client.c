@@ -38,7 +38,7 @@
 #include <sys/neutrino.h>
 #include <sys/siginfo.h>
 
-#include "hotswap_proto.h"
+#include "counter.h"
 
 #define PULSE_CODE_TICK (_PULSE_CODE_MINAVAIL + 0)
 
@@ -121,9 +121,9 @@ int main(int argc, char **argv)
         }
     }
 
-    int fd = open(HOTSWAP_PATH, O_RDONLY);
+    int fd = open(COUNTER_PATH, O_RDONLY);
     if (fd == -1) {
-        fprintf(stderr, "client: cannot open %s: %s\n", HOTSWAP_PATH, strerror(errno));
+        fprintf(stderr, "client: cannot open %s: %s\n", COUNTER_PATH, strerror(errno));
         return 1;
     }
 
@@ -188,7 +188,7 @@ int main(int argc, char **argv)
         ssize_t n = -1;
         int err = 0;
         if (fd == -1) {
-            fd = open(HOTSWAP_PATH, O_RDONLY);
+            fd = open(COUNTER_PATH, O_RDONLY);
             if (fd != -1) {
                 reconnects++;
             } else {

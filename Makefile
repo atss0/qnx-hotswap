@@ -4,14 +4,26 @@
 #   make            build everything into build/
 #   make deploy     copy the binaries to the VM (ssh alias "qnxvm") in /tmp/hotswap
 #   make clean
+#
+# Every driver (counter.c, accel.c) is built in several variants from the
+# same source:
+#   <drv>_v1, <drv>_v2   swappable cores (core_main.c), versions 1 and 2
+#   <drv>_v2_bad         v2 core that crashes on its first read (rollback demo)
+#   <drv>_mono_v1, _v2   the same driver as a conventional single-process
+#                        resource manager (mono_main.c): the restart baseline
 
 CC      := qcc -Vgcc_ntox86_64
 CFLAGS  := -O2 -Wall -Wextra -std=gnu11
+LDLIBS  := -lm
 OUT     := build
-BINS    := $(OUT)/shell $(OUT)/core_v1 $(OUT)/core_v2 $(OUT)/core_v2_bad $(OUT)/client \
-           $(OUT)/mono_v1 $(OUT)/mono_v2 \
+DRIVERS := counter accel
+VARIANTS:= _v1 _v2 _v2_bad _mono_v1 _mono_v2
+
+BINS    := $(OUT)/shell \
+           $(foreach d,$(DRIVERS),$(foreach v,$(VARIANTS),$(OUT)/$(d)$(v))) \
+           $(OUT)/counter_client $(OUT)/accel_client \
            $(OUT)/jitter $(OUT)/hello
-HDRS    := src/hotswap_proto.h
+CORE_HDRS := src/hotswap_proto.h src/driver.h src/counter.h src/accel.h
 TARGET  ?= qnxvm
 REMOTE  ?= /tmp/hotswap
 
@@ -20,23 +32,29 @@ all: $(BINS)
 $(OUT):
 	mkdir -p $@
 
-$(OUT)/shell: src/shell.c $(HDRS) | $(OUT)
+$(OUT)/shell: src/shell.c src/hotswap_proto.h | $(OUT)
 	$(CC) $(CFLAGS) -o $@ $<
 
-# A "buggy release" of v2 that crashes on its first read (rollback demo).
-# Explicit rules take precedence over the core_v% pattern below.
-$(OUT)/core_v2_bad: src/core.c $(HDRS) | $(OUT)
-	$(CC) $(CFLAGS) -DCORE_VERSION=2 -DCRASH_ON_READ -o $@ $<
+# Driver variants. $(1) = driver name.
+define driver_rules
+$(OUT)/$(1)_v1: src/core_main.c src/$(1).c $(CORE_HDRS) | $(OUT)
+	$(CC) $(CFLAGS) -DDRV_VERSION=1 -o $$@ src/core_main.c src/$(1).c $(LDLIBS)
+$(OUT)/$(1)_v2: src/core_main.c src/$(1).c $(CORE_HDRS) | $(OUT)
+	$(CC) $(CFLAGS) -DDRV_VERSION=2 -o $$@ src/core_main.c src/$(1).c $(LDLIBS)
+$(OUT)/$(1)_v2_bad: src/core_main.c src/$(1).c $(CORE_HDRS) | $(OUT)
+	$(CC) $(CFLAGS) -DDRV_VERSION=2 -DCRASH_ON_READ -o $$@ src/core_main.c src/$(1).c $(LDLIBS)
+$(OUT)/$(1)_mono_v1: src/mono_main.c src/$(1).c $(CORE_HDRS) | $(OUT)
+	$(CC) $(CFLAGS) -DDRV_VERSION=1 -o $$@ src/mono_main.c src/$(1).c $(LDLIBS)
+$(OUT)/$(1)_mono_v2: src/mono_main.c src/$(1).c $(CORE_HDRS) | $(OUT)
+	$(CC) $(CFLAGS) -DDRV_VERSION=2 -o $$@ src/mono_main.c src/$(1).c $(LDLIBS)
+endef
+$(foreach d,$(DRIVERS),$(eval $(call driver_rules,$(d))))
 
-$(OUT)/core_v%: src/core.c $(HDRS) | $(OUT)
-	$(CC) $(CFLAGS) -DCORE_VERSION=$* -o $@ $<
+$(OUT)/counter_client: src/client.c src/counter.h | $(OUT)
+	$(CC) $(CFLAGS) -o $@ $< $(LDLIBS)
 
-# Conventional single-process driver: the stop-and-restart baseline.
-$(OUT)/mono_v%: src/mono.c $(HDRS) | $(OUT)
-	$(CC) $(CFLAGS) -DMONO_VERSION=$* -o $@ $<
-
-$(OUT)/client: src/client.c $(HDRS) | $(OUT)
-	$(CC) $(CFLAGS) -o $@ $<
+$(OUT)/accel_client: src/accel_client.c src/accel.h | $(OUT)
+	$(CC) $(CFLAGS) -o $@ $< $(LDLIBS)
 
 $(OUT)/jitter: examples/jitter/jitter.c | $(OUT)
 	$(CC) $(CFLAGS) -o $@ $<
