@@ -202,8 +202,13 @@ int main(int argc, char **argv)
             n = read(fd, &rec, sizeof rec);
             if (n == -1) {
                 err = errno;
-                close(fd);      /* drop the dead descriptor; reopen next tick */
-                fd = -1;
+                /* EAGAIN: the hot-swap shell has no core for the moment; the
+                 * descriptor is still good. Anything else (a conventional
+                 * driver restarted): drop it and reopen next tick. */
+                if (err != EAGAIN) {
+                    close(fd);
+                    fd = -1;
+                }
             }
         }
         uint64_t done = now_ns();

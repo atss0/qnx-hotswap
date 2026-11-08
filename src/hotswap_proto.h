@@ -20,11 +20,16 @@
  *   4. makes the new core current and parks the old one for a probation
  *      period, after which it is told to exit (CORE_OP_QUIT).
  *
+ * The shell also takes periodic checkpoints of the current core's state
+ * (CORE_OP_CHECKPOINT), so a core that dies later can be replaced without
+ * starting from nothing.
+ *
  * The state is an opaque blob to the shell: only its format number matters.
  */
 #ifndef HOTSWAP_PROTO_H
 #define HOTSWAP_PROTO_H
 
+#include <stddef.h>
 #include <stdint.h>
 #include <devctl.h>
 #include <sys/iomsg.h>
@@ -69,13 +74,24 @@ enum core_op {
                            reply: struct core_state; core stops serving */
     CORE_OP_IMPORT,     /* msg carries struct core_state; reply: empty */
     CORE_OP_QUIT,       /* reply: empty; core exits */
+    CORE_OP_CHECKPOINT, /* like EXPORT, but the core keeps serving */
+    CORE_OP_WRITE,      /* msg: state.size bytes in state.data;
+                           MsgSend returns the number of bytes taken */
+    CORE_OP_CTL,        /* driver-specific devctl: state.format = dcmd,
+                           state.size input bytes in state.data;
+                           reply: output bytes, MsgSend returns their number */
 };
 
 struct core_msg {
     uint16_t type;      /* CORE_MSG_TYPE */
     uint16_t op;        /* enum core_op */
     uint32_t reserved;
-    struct core_state state;   /* used by EXPORT (format only) and IMPORT */
+    struct core_state state;   /* used by EXPORT (format only), IMPORT, ... */
 };
+
+/* Only the part of a message that an operation needs is sent, so the common
+ * case (CORE_OP_READ) moves 8 bytes instead of more than 500. */
+#define CORE_MSG_HDR_LEN        offsetof(struct core_msg, state)
+#define CORE_MSG_STATE_HDR_LEN  (CORE_MSG_HDR_LEN + offsetof(struct core_state, data))
 
 #endif /* HOTSWAP_PROTO_H */

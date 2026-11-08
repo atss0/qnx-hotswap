@@ -27,6 +27,8 @@
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <sys/neutrino.h>
+#include <sys/siginfo.h>
 
 #include "accel.h"
 #include "driver.h"
@@ -98,18 +100,40 @@ static int32_t hw_read(uint64_t t_ns, int selftest)
     return (int32_t)lrint(truth) + SIM_BIAS_MG + noise + glitch;
 }
 
-/* Measure the zero-g bias: average CAL_SAMPLES self-test readings. Real
- * sensors need this after every power-up or driver restart unless the
- * calibration is handed over. */
+/* Measure the zero-g bias: average CAL_SAMPLES self-test readings, one per
+ * millisecond. Real sensors need this after every power-up or driver restart
+ * unless the calibration is handed over.
+ *
+ * The spacing comes from a periodic timer delivering pulses: a loop around
+ * nanosleep(1 ms) would really take about 2 ms per sample, because QNX rounds
+ * sleeps up to the next clock tick. */
 static void calibrate(void)
 {
     uint64_t t0 = now_ns();
     int64_t sum = 0;
-    struct timespec ms = { 0, 1000000 };
+
+    int chid = ChannelCreate(_NTO_CHF_PRIVATE);
+    int coid = ConnectAttach(0, 0, chid, _NTO_SIDE_CHANNEL, 0);
+    struct sigevent ev;
+    SIGEV_PULSE_INIT(&ev, coid, SIGEV_PULSE_PRIO_INHERIT, _PULSE_CODE_MINAVAIL, 0);
+    timer_t timer;
+    timer_create(CLOCK_MONOTONIC, &ev, &timer);
+    struct itimerspec its = {
+        .it_value    = { .tv_sec = 0, .tv_nsec = 1000000 },
+        .it_interval = { .tv_sec = 0, .tv_nsec = 1000000 },
+    };
+    timer_settime(timer, 0, &its, NULL);
+
     for (int i = 0; i < CAL_SAMPLES; i++) {
+        struct _pulse p;
+        MsgReceivePulse(chid, &p, sizeof p, NULL);
         sum += hw_read(0, 1);
-        nanosleep(&ms, NULL);
     }
+
+    timer_delete(timer);
+    ConnectDetach(coid);
+    ChannelDestroy(chid);
+
     st.f1.bias_mg = (int32_t)(sum / CAL_SAMPLES);
     st.f1.calibrated = 1;
     printf("accel v%d: calibrated, bias %d mg (true %d), took %.0f ms\n",

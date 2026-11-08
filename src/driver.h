@@ -40,6 +40,15 @@ struct driver {
     /* Produce one record for a client read into buf (at most max bytes).
      * Return the record size. */
     ssize_t (*read)(void *buf, size_t max);
+
+    /* Optional (may be NULL): take a client's write(). Return the number of
+     * bytes taken, or -1. */
+    ssize_t (*write)(const void *buf, size_t len);
+
+    /* Optional (may be NULL): a driver-specific devctl. data holds 'in'
+     * input bytes and has room for 'max' output bytes. Return the number of
+     * output bytes, or -1. */
+    ssize_t (*control)(uint32_t dcmd, void *data, size_t in, size_t max);
 };
 
 /* Each driver source file defines exactly one of these. */

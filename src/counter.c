@@ -91,6 +91,28 @@ static ssize_t counter_read(void *buf, size_t max)
     return (ssize_t)n;
 }
 
+/* write(): set the counter to the uint64_t that was written. */
+static ssize_t counter_write(const void *buf, size_t len)
+{
+    if (len != sizeof(uint64_t)) {
+        return -1;
+    }
+    memcpy(&counter_value, buf, sizeof counter_value);
+    return (ssize_t)len;
+}
+
+static ssize_t counter_control(uint32_t dcmd, void *data, size_t in, size_t max)
+{
+    uint64_t n;
+    if (dcmd != (uint32_t)DCMD_COUNTER_ADD || in < sizeof n || max < sizeof n) {
+        return -1;
+    }
+    memcpy(&n, data, sizeof n);
+    counter_value += n;
+    memcpy(data, &counter_value, sizeof counter_value);
+    return (ssize_t)sizeof counter_value;
+}
+
 const struct driver drv = {
     .path         = COUNTER_PATH,
     .version      = DRV_VERSION,
@@ -99,4 +121,6 @@ const struct driver drv = {
     .import_state = counter_import,
     .export_state = counter_export,
     .read         = counter_read,
+    .write        = counter_write,
+    .control      = counter_control,
 };
