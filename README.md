@@ -77,6 +77,23 @@ WHPX must keep the interrupt controller in the hypervisor
 (`kernel-irqchip=on`, the script's default). With `kernel-irqchip=off` the
 guest loses timer interrupts and the 1 kHz timer runs at about 450 Hz.
 
+## First swap results
+
+`scripts/demo-swap.sh 30 swap` runs the 1 kHz client (priority 50) for 30 s
+while core v2 replaces v1 at 3 s and v1 replaces v2 at 6 s. `none` is the
+same run without swaps. VM: 2 vCPUs, QEMU at Windows priority High.
+
+| Run | swap time | read errors | counter gaps | missed deadlines | max late |
+|---|---|---|---|---|---|
+| none #1 | - | 0 | 0 | 0 | 101 µs |
+| swap #1 | 8.2 / 8.5 µs | 0 | 0 | 0 | 190 µs |
+| none #2 | - | 0 | 0 | 0 | 155 µs |
+| swap #2 | 2.1 / 7.6 µs | 0 | 0 | 0 | 380 µs |
+
+With 4 vCPUs at normal host priority the guest saw random 1-4 ms stalls
+(1-15 missed deadlines per 30 s) with or without swaps: host preemption of
+the VM, not the swap.
+
 ## License
 
 Apache License 2.0, see [LICENSE](LICENSE).

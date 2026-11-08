@@ -20,7 +20,14 @@ param(
     [switch]$UserIrqchip,               # WHPX with kernel-irqchip=off (fallback if default fails)
     [string]$VmDir = 'D:\qnx-vm',
     [int]$SshPort = 2223,               # 2222 stays free for the WSL/TCG VM
-    [int]$Cpus = 4,
+    # 2 vCPUs leave host cores free, so Windows has less reason to preempt
+    # the VM's virtual CPUs (which shows up as millisecond stalls in the guest).
+    [int]$Cpus = 2,
+    # Windows priority class of the QEMU process. High reduces host-side
+    # preemption of the VM; RealTime needs an elevated shell and can starve
+    # the host, so it is not the default.
+    [ValidateSet('Normal', 'AboveNormal', 'High', 'RealTime')]
+    [string]$HostPriority = 'High',
     [string]$Ram = '1G'
 )
 $ErrorActionPreference = 'Stop'
@@ -71,6 +78,12 @@ function Start-Vm {
     $started = Get-Date
     $p = Start-Process -FilePath $Qemu -ArgumentList $qemuArgs -WindowStyle Hidden -PassThru
     $p.Id | Set-Content $PidFile
+    try {
+        $p.PriorityClass = $HostPriority
+        Write-Host "QEMU host priority: $HostPriority, vCPUs: $Cpus"
+    } catch {
+        Write-Host "Could not set host priority $HostPriority ($($_.Exception.Message)); continuing"
+    }
 
     # Wait for a login prompt or shell on the serial console.
     for ($i = 0; $i -lt 120; $i++) {
