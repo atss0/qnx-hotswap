@@ -18,7 +18,12 @@
  * The period comes from a periodic timer delivering pulses (see
  * examples/jitter for why clock_nanosleep is not used).
  *
- * Usage: client [seconds] [period_us] [priority]   (defaults: 10 1000 50)
+ * Usage: client [seconds] [period_us] [priority] [samples.csv]
+ *   defaults: 10 1000 50, no sample file
+ *   samples.csv: one line per tick (time, read latency, lateness, ok, value,
+ *   version) for plotting with tools/plot.py. Samples are kept in memory
+ *   during the run and written at the end, so file I/O never disturbs the
+ *   loop.
  */
 #include <errno.h>
 #include <fcntl.h>
@@ -44,6 +49,33 @@ static uint64_t now_ns(void)
     return (uint64_t)t.tv_sec * 1000000000ull + (uint64_t)t.tv_nsec;
 }
 
+/* One tick's measurements, kept in memory for the optional CSV file. */
+struct sample {
+    uint64_t t_ns;          /* wake-up time since the first tick */
+    uint64_t value;         /* counter value read (0 if the read failed) */
+    uint32_t read_ns;       /* duration of open()/read() this tick */
+    uint32_t late_ns;       /* how late the loop woke up */
+    uint32_t version;       /* driver version that answered */
+    uint32_t ok;            /* 1 = a full record was read */
+};
+
+static int write_samples(const char *path, const struct sample *s, long n)
+{
+    FILE *f = fopen(path, "w");
+    if (f == NULL) {
+        fprintf(stderr, "client: cannot write %s: %s\n", path, strerror(errno));
+        return -1;
+    }
+    fprintf(f, "t_ms,read_us,late_us,ok,value,version\n");
+    for (long i = 0; i < n; i++) {
+        fprintf(f, "%.3f,%.2f,%.2f,%u,%llu,%u\n",
+                s[i].t_ns / 1e6, s[i].read_ns / 1e3, s[i].late_ns / 1e3,
+                s[i].ok, (unsigned long long)s[i].value, s[i].version);
+    }
+    fclose(f);
+    return 0;
+}
+
 /* Running statistics for one reporting window or the whole run. */
 struct stats {
     long     reads, errors, gaps, missed;
@@ -65,8 +97,21 @@ int main(int argc, char **argv)
     long     seconds   = argc > 1 ? atol(argv[1]) : 10;
     uint64_t period_ns = (uint64_t)(argc > 2 ? atol(argv[2]) : 1000) * 1000u;
     int      prio      = argc > 3 ? atoi(argv[3]) : 50;
+    const char *csv    = argc > 4 ? argv[4] : NULL;
     long     per_sec   = (long)(1000000000ull / period_ns);
     long     total     = seconds * per_sec;
+
+    /* Allocate (and touch) the sample buffer before the loop starts, so no
+     * page faults happen while measuring. */
+    struct sample *samples = NULL;
+    if (csv) {
+        samples = calloc((size_t)total, sizeof *samples);
+        if (samples == NULL) {
+            fprintf(stderr, "client: no memory for %ld samples\n", total);
+            return 1;
+        }
+        memset(samples, 0, (size_t)total * sizeof *samples);
+    }
 
     if (prio > 0) {
         struct sched_param sp = { .sched_priority = prio };
@@ -168,6 +213,16 @@ int main(int argc, char **argv)
         win.missed += lost;
         all.missed += lost;
 
+        if (samples) {
+            struct sample *sm = &samples[i - 1];
+            sm->t_ns    = woke - start;
+            sm->read_ns = (uint32_t)read_ns;
+            sm->late_ns = (uint32_t)late;
+            sm->ok      = n == (ssize_t)sizeof rec;
+            sm->value   = sm->ok ? rec.value : 0;
+            sm->version = sm->ok ? rec.core_version : 0;
+        }
+
         struct stats *ss[2] = { &win, &all };
         for (int k = 0; k < 2; k++) {
             struct stats *s = ss[k];
@@ -227,5 +282,9 @@ int main(int argc, char **argv)
     stats_print("TOTAL", &all, prev_ver);
     printf("TOTAL reconnects=%ld longest_outage_ms=%.1f\n",
            reconnects, max_outage_ns / 1e6);
+    if (samples) {
+        write_samples(csv, samples, total);
+        free(samples);
+    }
     return (all.errors || all.gaps || all.missed) ? 1 : 0;
 }

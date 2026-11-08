@@ -22,6 +22,7 @@
 #
 # INIT_MS=<ms> gives every driver start (core_vN and mono_vN alike) a
 # simulated hardware initialisation time, e.g. INIT_MS=200 ./demo-swap.sh 10 restart
+# SAMPLES=<file.csv> writes one line per client tick (see tools/plot.py).
 set -u
 DIR=$(dirname "$0")
 SECS=${1:-10}
@@ -62,7 +63,8 @@ event() {
     esac
 }
 
-"$DIR/client" "$SECS" 1000 50 &
+# SAMPLES=<file.csv> makes the client record every tick for tools/plot.py.
+"$DIR/client" "$SECS" 1000 50 ${SAMPLES:-} &
 CLIENT_PID=$!
 
 sleep 3

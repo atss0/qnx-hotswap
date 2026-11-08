@@ -118,6 +118,8 @@ handover snapshot.
 
 ### Hot swap vs. stop-and-restart
 
+![1 kHz client during two driver upgrades: hot swap vs. stop-and-restart](docs/swap-vs-restart.png)
+
 `restart` mode runs the same counter as a conventional single-process
 resource manager (`mono_vN`) and upgrades it the usual way, by stopping the
 old process and starting the new one (what a QNX HAM restart action does).
@@ -137,6 +139,17 @@ With `INIT_MS=0` the restart outage is about 1 ms (1 failed read per
 upgrade), but the state is still lost and the client still sees `EBADF`.
 With hot swap the new version initialises while the old one keeps serving,
 so initialisation time never becomes downtime.
+
+To reproduce the figure (on the target, then on the host):
+
+```sh
+INIT_MS=200 SAMPLES=/tmp/hs-swap.csv    ./demo-swap.sh 10 swap
+INIT_MS=200 SAMPLES=/tmp/hs-restart.csv ./demo-swap.sh 10 restart
+
+python3 -m venv .venv && .venv/bin/pip install matplotlib
+.venv/bin/python tools/plot.py --run "Hot swap" swap.csv \
+    --run "Stop and restart" restart.csv --out docs/swap-vs-restart.png
+```
 
 With 4 vCPUs at normal host priority the guest saw random 1-4 ms stalls
 (1-15 missed deadlines per 30 s) with or without swaps: host preemption of

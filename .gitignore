@@ -7,3 +7,9 @@ build/
 # VM state and logs
 *.pid
 qemu.out
+
+# Python virtualenv for tools/plot.py
+.venv/
+
+# Raw sample files from demo runs
+results/
