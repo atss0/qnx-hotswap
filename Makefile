@@ -35,10 +35,13 @@ $(OUT)/hello: examples/hello/hello.c | $(OUT)
 	$(CC) $(CFLAGS) -o $@ $<
 
 # scp hangs against the quickstart image, so stream each file through ssh.
+# Write to a temporary name and rename: a running binary cannot be
+# overwritten in place ("Resource busy"), but it can be replaced.
 deploy: all
 	ssh $(TARGET) 'mkdir -p $(REMOTE)'
 	for f in $(BINS) scripts/demo-swap.sh; do \
-	    ssh $(TARGET) "cat > $(REMOTE)/$$(basename $$f) && chmod +x $(REMOTE)/$$(basename $$f)" < $$f || exit 1; \
+	    b=$(REMOTE)/$$(basename $$f); \
+	    ssh $(TARGET) "cat > $$b.new && chmod +x $$b.new && mv -f $$b.new $$b" < $$f || exit 1; \
 	done
 
 clean:

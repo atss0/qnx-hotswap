@@ -98,11 +98,11 @@ int main(int argc, char **argv)
     };
     timer_settime(timer, 0, &its, NULL);
 
-    /* Wait for the first tick; every later tick is due one period after the
-     * previous due time. */
+    /* Wait for the first tick. Tick k is then due at start + k * period. */
     struct _pulse p;
     MsgReceivePulse(chid, &p, sizeof p, NULL);
-    uint64_t due = now_ns();
+    uint64_t start = now_ns();
+    uint64_t tick  = 0;     /* index of the tick we are serving */
 
     struct stats win = {0}, all = {0};
     uint64_t prev_value = 0;
@@ -111,9 +111,22 @@ int main(int argc, char **argv)
 
     for (long i = 1; i <= total; i++) {
         MsgReceivePulse(chid, &p, sizeof p, NULL);
-        due += period_ns;
-
         uint64_t woke = now_ns();
+        tick++;
+
+        /* If the loop was stalled for several periods, the timer could not
+         * queue one pulse per expiry: those ticks are simply gone. Detect
+         * them from the clock, count each as a missed deadline, and resync
+         * so one stall is not reported as lateness forever after. */
+        uint64_t elapsed_ticks = (woke - start) / period_ns;
+        long lost = 0;
+        if (elapsed_ticks > tick) {
+            lost = (long)(elapsed_ticks - tick);
+            tick = elapsed_ticks;
+            fprintf(stderr, "client: stall before read #%ld: %ld tick(s) lost\n", i, lost);
+        }
+        uint64_t due = start + tick * period_ns;
+
         struct counter_rec rec;
         ssize_t n = read(fd, &rec, sizeof rec);
         uint64_t done = now_ns();
@@ -123,6 +136,8 @@ int main(int argc, char **argv)
         uint64_t late    = woke > due ? woke - due : 0;
         uint64_t read_ns = done - woke;
         int      missed  = (done > due ? done - due : 0) >= period_ns;
+        win.missed += lost;
+        all.missed += lost;
 
         struct stats *ss[2] = { &win, &all };
         for (int k = 0; k < 2; k++) {
