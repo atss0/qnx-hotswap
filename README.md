@@ -219,9 +219,13 @@ hot swap and through the rollback; with restart every client loses 1402
 reads. One open measurement issue: with four clients, the last client
 started occasionally wakes about one clock tick (~1 ms) late and counts a
 missed deadline (2-27 per 10 s). This happens in the `none` control run as
-well, with no driver activity at all, so it comes from the test setup
-(probably timer/tick alignment with four 1 ms timers on two vCPUs), not from
-the swap; it is not investigated yet.
+well, with no driver activity at all, so it comes from the test setup, not
+from the swap. Four plain `examples/jitter` timer loops, with no driver
+involved, show the same thing in some runs (one loop ~1 tick late much of
+the time) and not in others, which points at timer expiries that happen to
+fall on a 1 ms clock-tick boundary. QNX 8.0 does not allow changing the
+clock period (`ClockPeriod` returns "Not supported"), so a finer tick is
+not an option; a hardware timer source would be the next thing to try.
 
 The restart outage is the 200 ms hardware initialisation plus 500 ms of
 calibration: with hot swap both happen before the switch, while the old
