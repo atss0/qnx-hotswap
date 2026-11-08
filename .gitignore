@@ -1,0 +1,9 @@
+# Build outputs (QNX binaries are built from source with qcc)
+*.o
+examples/hello/hello
+examples/jitter/jitter
+build/
+
+# VM state and logs
+*.pid
+qemu.out
