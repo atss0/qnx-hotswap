@@ -16,6 +16,11 @@
  *
  * Usage: accel_client [seconds] [period_us] [priority] [samples.csv]
  *   defaults: 10 1000 50, no sample file
+ *
+ * When several clients read the same device (HOTSWAP_SHARED set in the
+ * environment), each one sees only part of the sequence numbers, so a break
+ * is then a sequence number that does not increase (a reset or repeat)
+ * rather than one that is not exactly previous + 1.
  */
 #include <errno.h>
 #include <fcntl.h>
@@ -99,6 +104,7 @@ int main(int argc, char **argv)
     const char *csv    = argc > 4 ? argv[4] : NULL;
     long     per_sec   = (long)(1000000000ull / period_ns);
     long     total     = seconds * per_sec;
+    int      shared    = getenv("HOTSWAP_SHARED") != NULL;
 
     /* Allocate (and touch) the sample buffer before the loop starts. */
     struct sample *samples = NULL;
@@ -202,6 +208,8 @@ int main(int argc, char **argv)
         int      valid   = got && (rec.flags & ACCEL_F_CALIBRATED);
         int32_t  truth   = got ? (int32_t)lrint(accel_truth_mg(rec.t_ns)) : 0;
         int32_t  e       = valid ? rec.value_mg - truth : 0;
+        int      brk     = got && have_prev &&
+                           (shared ? rec.seq <= prev_seq : rec.seq != prev_seq + 1);
 
         struct stats *ss[2] = { &win, &all };
         for (int k = 0; k < 2; k++) {
@@ -220,7 +228,7 @@ int main(int argc, char **argv)
                 s->sum_sq_err += (double)e * e;
                 s->n_err++;
             }
-            if (got && have_prev && rec.seq != prev_seq + 1) {
+            if (brk) {
                 s->breaks++;
             }
         }
@@ -241,7 +249,7 @@ int main(int argc, char **argv)
                         "reads)\n", outage / 1e6, outage_errors);
                 outage_start = 0;
             }
-            if (have_prev && rec.seq != prev_seq + 1) {
+            if (brk) {
                 fprintf(stderr, "accel_client: sequence break at #%ld: %llu -> %llu\n", i,
                         (unsigned long long)prev_seq, (unsigned long long)rec.seq);
             }

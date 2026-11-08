@@ -211,6 +211,16 @@ every sample (see `src/accel.h`).
 | missed deadlines | 0 | 0 | 0 (but no data for 701 ms) |
 | switch / rollback time | 24-41 µs | rollback 6 µs, crashed read 272 µs | - |
 
+**Several clients.** With `CLIENTS=4` (four 1 kHz clients on `/dev/accel`
+at once), every client sees 0 failed reads and 0 sequence breaks through the
+hot swap and through the rollback; with restart every client loses 1402
+reads. One open measurement issue: with four clients, the last client
+started occasionally wakes about one clock tick (~1 ms) late and counts a
+missed deadline (2-27 per 10 s). This happens in the `none` control run as
+well, with no driver activity at all, so it comes from the test setup
+(probably timer/tick alignment with four 1 ms timers on two vCPUs), not from
+the swap; it is not investigated yet.
+
 The restart outage is the 200 ms hardware initialisation plus 500 ms of
 calibration: with hot swap both happen before the switch, while the old
 version is still serving. In the figure the effect of the v2 improvement is

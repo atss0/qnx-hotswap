@@ -100,6 +100,9 @@ int main(int argc, char **argv)
     const char *csv    = argc > 4 ? argv[4] : NULL;
     long     per_sec   = (long)(1000000000ull / period_ns);
     long     total     = seconds * per_sec;
+    /* Several clients on one device each see only part of the counter
+     * values: then a gap means "did not increase", not "not exactly +1". */
+    int      shared    = getenv("HOTSWAP_SHARED") != NULL;
 
     /* Allocate (and touch) the sample buffer before the loop starts, so no
      * page faults happen while measuring. */
@@ -255,7 +258,8 @@ int main(int argc, char **argv)
                         (unsigned long long)rec.value);
                 outage_start = 0;
             }
-            if (have_prev && rec.value != prev_value + 1) {
+            if (have_prev && (shared ? rec.value <= prev_value
+                                     : rec.value != prev_value + 1)) {
                 win.gaps++;
                 all.gaps++;
                 fprintf(stderr, "client: gap at #%ld: %llu -> %llu\n", i,

@@ -26,6 +26,9 @@
 # INIT_MS=<ms> gives every driver start (cores and mono alike) a simulated
 # hardware initialisation time, e.g. INIT_MS=200 ./demo-swap.sh 10 restart
 # SAMPLES=<file.csv> writes one line per client tick (see tools/plot.py).
+# CLIENTS=<n> runs n clients at once on the same device (default 1); only
+# the first one writes SAMPLES. The exit code is non-zero if any client
+# saw a failure.
 set -u
 DIR=$(dirname "$0")
 SECS=${1:-10}
@@ -68,15 +71,30 @@ event() {
     esac
 }
 
-"$DIR/${DRV}_client" "$SECS" 1000 50 ${SAMPLES:-} &
-CLIENT_PID=$!
+NCLIENTS=${CLIENTS:-1}
+if [ "$NCLIENTS" -gt 1 ]; then
+    export HOTSWAP_SHARED=1     # clients see interleaved sequence numbers
+fi
+CLIENT_PIDS=
+n=1
+while [ "$n" -le "$NCLIENTS" ]; do
+    if [ "$n" -eq 1 ]; then
+        "$DIR/${DRV}_client" "$SECS" 1000 50 ${SAMPLES:-} &
+    else
+        "$DIR/${DRV}_client" "$SECS" 1000 50 &
+    fi
+    CLIENT_PIDS="$CLIENT_PIDS $!"
+    n=$((n + 1))
+done
 
 sleep 3
 event ${DRV}_v2 ${DRV}_v2_bad ${DRV}_mono_v2
 sleep 3
 event ${DRV}_v1 ${DRV}_v2 ${DRV}_mono_v1
 
-wait "$CLIENT_PID"
-RC=$?
-echo "=== [$DRV $MODE] client exit code: $RC (0 = no failures, no state loss, no missed deadlines) ==="
+RC=0
+for pid in $CLIENT_PIDS; do
+    wait "$pid" || RC=1
+done
+echo "=== [$DRV $MODE, $NCLIENTS client(s)] exit code: $RC (0 = no failures, no state loss, no missed deadlines) ==="
 exit $RC
