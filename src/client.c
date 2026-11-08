@@ -11,6 +11,10 @@
  * It prints one line per second and a summary, and reports every change of
  * core version as it happens.
  *
+ * If the descriptor goes bad (a conventional driver was restarted), the
+ * client reopens /dev/counter on the next tick, as a robust application
+ * would, and reports how long the device was unavailable.
+ *
  * The period comes from a periodic timer delivering pulses (see
  * examples/jitter for why clock_nanosleep is not used).
  *
@@ -109,6 +113,10 @@ int main(int argc, char **argv)
     uint32_t prev_ver = 0;
     int have_prev = 0;
 
+    /* Outage tracking: from the first failed read to the next good one. */
+    uint64_t outage_start = 0, max_outage_ns = 0;
+    long     outage_errors = 0, reconnects = 0;
+
     for (long i = 1; i <= total; i++) {
         MsgReceivePulse(chid, &p, sizeof p, NULL);
         uint64_t woke = now_ns();
@@ -127,8 +135,29 @@ int main(int argc, char **argv)
         }
         uint64_t due = start + tick * period_ns;
 
+        /* Like a real application, reopen the device after its descriptor
+         * went bad (that happens when a conventional driver is restarted).
+         * While /dev/counter does not exist yet, open() fails: that tick
+         * counts as an error too. */
         struct counter_rec rec;
-        ssize_t n = read(fd, &rec, sizeof rec);
+        ssize_t n = -1;
+        int err = 0;
+        if (fd == -1) {
+            fd = open(HOTSWAP_PATH, O_RDONLY);
+            if (fd != -1) {
+                reconnects++;
+            } else {
+                err = errno;
+            }
+        }
+        if (fd != -1) {
+            n = read(fd, &rec, sizeof rec);
+            if (n == -1) {
+                err = errno;
+                close(fd);      /* drop the dead descriptor; reopen next tick */
+                fd = -1;
+            }
+        }
         uint64_t done = now_ns();
 
         /* Lateness is measured from when the tick was due; a tick that
@@ -152,9 +181,25 @@ int main(int argc, char **argv)
         if (n != (ssize_t)sizeof rec) {
             win.errors++;
             all.errors++;
-            fprintf(stderr, "client: read #%ld failed: %s\n", i,
-                    n == -1 ? strerror(errno) : "short read");
+            /* Report only the first failure of an outage, not one per tick. */
+            if (outage_start == 0) {
+                outage_start = woke;
+                outage_errors = 0;
+                fprintf(stderr, "client: read #%ld failed: %s; device unavailable\n",
+                        i, n == -1 ? strerror(err) : "short read");
+            }
+            outage_errors++;
         } else {
+            if (outage_start != 0) {
+                uint64_t outage = done - outage_start;
+                if (outage > max_outage_ns) {
+                    max_outage_ns = outage;
+                }
+                fprintf(stderr, "client: device back after %.1f ms (%ld failed "
+                        "reads); counter now %llu\n", outage / 1e6, outage_errors,
+                        (unsigned long long)rec.value);
+                outage_start = 0;
+            }
             if (have_prev && rec.value != prev_value + 1) {
                 win.gaps++;
                 all.gaps++;
@@ -180,5 +225,7 @@ int main(int argc, char **argv)
     }
 
     stats_print("TOTAL", &all, prev_ver);
+    printf("TOTAL reconnects=%ld longest_outage_ms=%.1f\n",
+           reconnects, max_outage_ns / 1e6);
     return (all.errors || all.gaps || all.missed) ? 1 : 0;
 }

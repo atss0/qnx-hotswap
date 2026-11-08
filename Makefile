@@ -9,6 +9,7 @@ CC      := qcc -Vgcc_ntox86_64
 CFLAGS  := -O2 -Wall -Wextra -std=gnu11
 OUT     := build
 BINS    := $(OUT)/shell $(OUT)/core_v1 $(OUT)/core_v2 $(OUT)/core_v2_bad $(OUT)/client \
+           $(OUT)/mono_v1 $(OUT)/mono_v2 \
            $(OUT)/jitter $(OUT)/hello
 HDRS    := src/hotswap_proto.h
 TARGET  ?= qnxvm
@@ -29,6 +30,10 @@ $(OUT)/core_v2_bad: src/core.c $(HDRS) | $(OUT)
 
 $(OUT)/core_v%: src/core.c $(HDRS) | $(OUT)
 	$(CC) $(CFLAGS) -DCORE_VERSION=$* -o $@ $<
+
+# Conventional single-process driver: the stop-and-restart baseline.
+$(OUT)/mono_v%: src/mono.c $(HDRS) | $(OUT)
+	$(CC) $(CFLAGS) -DMONO_VERSION=$* -o $@ $<
 
 $(OUT)/client: src/client.c $(HDRS) | $(OUT)
 	$(CC) $(CFLAGS) -o $@ $<

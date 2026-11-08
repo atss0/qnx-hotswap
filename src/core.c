@@ -17,10 +17,13 @@
  * must come from a second thread because the shell, while handling it, sends
  * CORE_OP_EXPORT/IMPORT messages that the main thread has to receive.
  *
- * Usage: core_vN [-p priority]
+ * Usage: core_vN [-p priority] [-i init_ms]
  *   -p  SCHED_FIFO priority of the registering thread (default 60). The shell
  *       runs the swap at this priority (QNX message passing inherits the
  *       sender's priority), so it should be above the clients' priority.
+ *   -i  simulated hardware initialisation time (same option as mono_vN).
+ *       It runs before the core registers, i.e. while the old core is still
+ *       serving clients, so it does not interrupt them.
  */
 #include <errno.h>
 #include <fcntl.h>
@@ -141,15 +144,24 @@ static int import_state(const struct core_state *st)
 
 int main(int argc, char **argv)
 {
-    int prio = 60;
-    int opt;
-    while ((opt = getopt(argc, argv, "p:")) != -1) {
+    int  prio = 60;
+    long init_ms = 0;
+    int  opt;
+    while ((opt = getopt(argc, argv, "p:i:")) != -1) {
         if (opt == 'p') {
             prio = atoi(optarg);
+        } else if (opt == 'i') {
+            init_ms = atol(optarg);
         } else {
-            fprintf(stderr, "usage: %s [-p priority]\n", argv[0]);
+            fprintf(stderr, "usage: %s [-p priority] [-i init_ms]\n", argv[0]);
             return 2;
         }
+    }
+
+    /* Hardware initialisation, done before registering: the predecessor
+     * keeps serving clients meanwhile. */
+    if (init_ms > 0) {
+        usleep((useconds_t)init_ms * 1000);
     }
 
     /* Public channel so the shell (another process) can connect to it. */

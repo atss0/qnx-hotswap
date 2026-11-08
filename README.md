@@ -116,6 +116,28 @@ that hit the crash took 273 µs instead of ~7 µs. Limitation: whatever the
 failed core changed before crashing is lost; the old core resumes from the
 handover snapshot.
 
+### Hot swap vs. stop-and-restart
+
+`restart` mode runs the same counter as a conventional single-process
+resource manager (`mono_vN`) and upgrades it the usual way, by stopping the
+old process and starting the new one (what a QNX HAM restart action does).
+The client reopens the device when its descriptor goes bad, as a robust
+application would. Both designs get the same simulated hardware
+initialisation time (`INIT_MS=200`), 10 s at 1 kHz, two upgrades:
+
+| | hot swap (`swap`) | stop-and-restart (`restart`) |
+|---|---|---|
+| failed reads | **0** | 402 (201 per upgrade) |
+| longest outage | **0 ms** | 201 ms |
+| counter state | kept (3200 → 3201) | **lost** (2999 → 1) |
+| client code needed | none | reopen on `EBADF` |
+| switch time | 10-33 µs | - |
+
+With `INIT_MS=0` the restart outage is about 1 ms (1 failed read per
+upgrade), but the state is still lost and the client still sees `EBADF`.
+With hot swap the new version initialises while the old one keeps serving,
+so initialisation time never becomes downtime.
+
 With 4 vCPUs at normal host priority the guest saw random 1-4 ms stalls
 (1-15 missed deadlines per 30 s) with or without swaps: host preemption of
 the VM, not the swap.
