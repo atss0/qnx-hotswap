@@ -17,10 +17,16 @@
  * Usage: accel_client [seconds] [period_us] [priority] [samples.csv]
  *   defaults: 10 1000 50, no sample file
  *
- * When several clients read the same device (HOTSWAP_SHARED set in the
- * environment), each one sees only part of the sequence numbers, so a break
- * is then a sequence number that does not increase (a reset or repeat)
- * rather than one that is not exactly previous + 1.
+ * Environment:
+ *   HOTSWAP_SHARED  several clients read the same device: each one sees
+ *                   only part of the sequence numbers, so a break is then a
+ *                   sequence number that does not increase (a reset or
+ *                   repeat) rather than one that is not exactly previous + 1
+ *   HOTSWAP_DEV     device path (default /dev/accel)
+ *   HOTSWAP_STREAM  n: every n ticks print one summary line for the live
+ *                   viewer (tools/live.py):
+ *                   S <t_ms> <ok> <failed> <max_read_us> <max_abs_err_mg>
+ *                     <version> <seq_breaks>
  */
 #include <errno.h>
 #include <fcntl.h>
@@ -105,6 +111,13 @@ int main(int argc, char **argv)
     long     per_sec   = (long)(1000000000ull / period_ns);
     long     total     = seconds * per_sec;
     int      shared    = getenv("HOTSWAP_SHARED") != NULL;
+    const char *dev    = getenv("HOTSWAP_DEV") ? getenv("HOTSWAP_DEV") : ACCEL_PATH;
+    long     stream    = getenv("HOTSWAP_STREAM") ? atol(getenv("HOTSWAP_STREAM")) : 0;
+
+    /* Live-view bucket: aggregated over 'stream' ticks, then printed. */
+    long     b_ok = 0, b_fail = 0, b_breaks = 0;
+    uint64_t b_max_read = 0;
+    int32_t  b_max_err = 0;
 
     /* Allocate (and touch) the sample buffer before the loop starts. */
     struct sample *samples = NULL;
@@ -125,9 +138,9 @@ int main(int argc, char **argv)
         }
     }
 
-    int fd = open(ACCEL_PATH, O_RDONLY);
+    int fd = open(dev, O_RDONLY);
     if (fd == -1) {
-        fprintf(stderr, "accel_client: cannot open %s: %s\n", ACCEL_PATH, strerror(errno));
+        fprintf(stderr, "accel_client: cannot open %s: %s\n", dev, strerror(errno));
         return 1;
     }
 
@@ -184,7 +197,7 @@ int main(int argc, char **argv)
         ssize_t n = -1;
         int err = 0;
         if (fd == -1) {
-            fd = open(ACCEL_PATH, O_RDONLY);
+            fd = open(dev, O_RDONLY);
             if (fd != -1) {
                 reconnects++;
             } else {
@@ -273,6 +286,27 @@ int main(int argc, char **argv)
             sm->value_mg = got ? rec.value_mg : 0;
             sm->truth_mg = truth;
             sm->version  = got ? rec.version : 0;
+        }
+
+        /* Live view: aggregate, and print one line every 'stream' ticks. */
+        if (stream > 0) {
+            if (valid) {
+                b_ok++;
+                int32_t a = e < 0 ? -e : e;
+                if (a > b_max_err) b_max_err = a;
+            } else {
+                b_fail++;
+            }
+            if (brk) b_breaks++;
+            if (read_ns > b_max_read) b_max_read = read_ns;
+            if (i % stream == 0) {
+                printf("S %.1f %ld %ld %.1f %d %u %ld\n", (woke - start) / 1e6,
+                       b_ok, b_fail, b_max_read / 1e3, b_max_err, prev_ver, b_breaks);
+                fflush(stdout);
+                b_ok = b_fail = b_breaks = 0;
+                b_max_read = 0;
+                b_max_err = 0;
+            }
         }
 
         if (i % per_sec == 0) {

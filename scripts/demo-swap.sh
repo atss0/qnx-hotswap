@@ -34,13 +34,19 @@ DIR=$(dirname "$0")
 SECS=${1:-10}
 MODE=${2:-swap}
 DRV=${DRV:-counter}
-DEV=/dev/$DRV
-INIT="-i ${INIT_MS:-0}"
+# DEV=<path> overrides the device path, so two demos can run side by side
+# (tools/live.py runs hot swap on /dev/accel and restart on /dev/accel_restart).
+DEV=${DEV:-/dev/$DRV}
+export HOTSWAP_DEV="$DEV"
+INIT="-i ${INIT_MS:-0} -n $DEV"
 DRV_PID=
+CORE_PIDS=
 
+# Stop only what this run started (another demo may be running in parallel).
 cleanup() {
-    [ -n "$DRV_PID" ] && kill "$DRV_PID" 2>/dev/null
-    slay -f shell ${DRV}_v1 ${DRV}_v2 ${DRV}_v2_bad ${DRV}_mono_v1 ${DRV}_mono_v2 2>/dev/null
+    for pid in $DRV_PID $CORE_PIDS; do
+        kill "$pid" 2>/dev/null
+    done
 }
 trap cleanup EXIT INT TERM
 
@@ -53,6 +59,7 @@ else
     DRV_PID=$!
     sleep 1
     "$DIR/${DRV}_v1" $INIT &
+    CORE_PIDS="$CORE_PIDS $!"
 fi
 sleep 2     # leave time for initialisation (and calibration, for accel)
 
@@ -60,8 +67,10 @@ sleep 2     # leave time for initialisation (and calibration, for accel)
 # $3 = conventional driver for restart mode.
 event() {
     case "$MODE" in
-        swap)     echo "=== hot swap: starting $1 ==="; "$DIR/$1" $INIT & ;;
-        rollback) echo "=== hot swap: starting $2 ==="; "$DIR/$2" $INIT & ;;
+        swap)     echo "=== hot swap: starting $1 ==="; "$DIR/$1" $INIT &
+                  CORE_PIDS="$CORE_PIDS $!" ;;
+        rollback) echo "=== hot swap: starting $2 ==="; "$DIR/$2" $INIT &
+                  CORE_PIDS="$CORE_PIDS $!" ;;
         restart)  echo "=== restart: stopping pid $DRV_PID, starting $3 ==="
                   kill "$DRV_PID"
                   "$DIR/$3" $INIT &

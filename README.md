@@ -227,6 +227,23 @@ version is still serving. In the figure the effect of the v2 improvement is
 visible too: v1's output shows the glitches as ±200 mg error spikes, v2's
 does not.
 
+## Live side-by-side view
+
+`tools/live.py` runs the hot swap (on `/dev/accel`) and the conventional
+restart (on `/dev/accel_restart`) at the same time on the target and plots
+both clients live from 20 ms summaries they stream back over SSH. It needs
+Python with matplotlib and Tk (it runs on the Windows host) and the binaries
+deployed with `make deploy`:
+
+```powershell
+python tools\live.py --seconds 12              # window updates while the runs go
+python tools\live.py --save docs\live-final.png --close
+```
+
+The final frame of a run:
+
+![Live view, final frame](docs/live-final.png)
+
 ## License
 
 Apache License 2.0, see [LICENSE](LICENSE).
