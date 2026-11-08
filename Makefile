@@ -8,7 +8,7 @@
 CC      := qcc -Vgcc_ntox86_64
 CFLAGS  := -O2 -Wall -Wextra -std=gnu11
 OUT     := build
-BINS    := $(OUT)/shell $(OUT)/core_v1 $(OUT)/core_v2 $(OUT)/client \
+BINS    := $(OUT)/shell $(OUT)/core_v1 $(OUT)/core_v2 $(OUT)/core_v2_bad $(OUT)/client \
            $(OUT)/jitter $(OUT)/hello
 HDRS    := src/hotswap_proto.h
 TARGET  ?= qnxvm
@@ -21,6 +21,11 @@ $(OUT):
 
 $(OUT)/shell: src/shell.c $(HDRS) | $(OUT)
 	$(CC) $(CFLAGS) -o $@ $<
+
+# A "buggy release" of v2 that crashes on its first read (rollback demo).
+# Explicit rules take precedence over the core_v% pattern below.
+$(OUT)/core_v2_bad: src/core.c $(HDRS) | $(OUT)
+	$(CC) $(CFLAGS) -DCORE_VERSION=2 -DCRASH_ON_READ -o $@ $<
 
 $(OUT)/core_v%: src/core.c $(HDRS) | $(OUT)
 	$(CC) $(CFLAGS) -DCORE_VERSION=$* -o $@ $<

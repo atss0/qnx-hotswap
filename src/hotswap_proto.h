@@ -37,24 +37,33 @@ struct counter_rec {
 
 /* ---- core -> shell: registration ---------------------------------------- */
 
-/* Sent by a newly started core: "connect to my channel <chid>". The shell
- * takes the pid from the kernel (the sender's real pid), not from here. */
+/* Sent by a newly started core: "connect to my channel <chid>; I can import
+ * state formats fmt_min..fmt_max". The shell takes the pid from the kernel
+ * (the sender's real pid), not from here. */
 struct hotswap_register {
     int32_t  chid;
     uint32_t core_version;
+    uint16_t fmt_min;
+    uint16_t fmt_max;
+    uint32_t reserved;
 };
 
 #define DCMD_HOTSWAP_REGISTER __DIOT(_DCMD_MISC, 0x48, struct hotswap_register)
 
 /* ---- shell <-> core ----------------------------------------------------- */
 
-/* Everything a core must hand to its successor. format lets a new core
- * reject (or convert) state written by an incompatible older version. */
-#define CORE_STATE_FORMAT 1
+/* Everything a core must hand to its successor. format says which fields
+ * are meaningful, so versions can change their state layout:
+ *   format 1 (core v1): value
+ *   format 2 (core v2): value, generation
+ * On EXPORT the shell puts the newest format the new core can import in
+ * state.format; the old core answers with the newest format it can write
+ * that is not newer than that. The new core converts older formats. */
 struct core_state {
     uint32_t format;
     uint32_t reserved;
-    uint64_t value;
+    uint64_t value;         /* format >= 1: counter value */
+    uint64_t generation;    /* format >= 2: number of handovers so far */
 };
 
 /* Message type for the shell->core protocol. Chosen above the range used by
@@ -63,7 +72,8 @@ struct core_state {
 
 enum core_op {
     CORE_OP_READ = 1,   /* reply: struct counter_rec */
-    CORE_OP_EXPORT,     /* reply: struct core_state; core stops serving */
+    CORE_OP_EXPORT,     /* msg: state.format = newest wanted format;
+                           reply: struct core_state; core stops serving */
     CORE_OP_IMPORT,     /* msg carries struct core_state; reply: empty */
     CORE_OP_QUIT,       /* reply: empty; core exits */
 };

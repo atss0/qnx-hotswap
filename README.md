@@ -90,6 +90,32 @@ same run without swaps. VM: 2 vCPUs, QEMU at Windows priority High.
 | none #2 | - | 0 | 0 | 0 | 155 µs |
 | swap #2 | 2.1 / 7.6 µs | 0 | 0 | 0 | 380 µs |
 
+### State format changes and rollback
+
+Core v2 stores more state than v1 (format 2 adds a `generation` field). A new
+core registers the state formats it can read; the shell asks the old core for
+a format the new one understands, and the new core converts older formats.
+The same mechanism handles downgrades (v2 writes format 1 for v1).
+
+After a swap the old core stays parked for a probation period (2 s by
+default, `shell -t ms`). If the new core fails meanwhile, the shell restores
+the old core from its own state snapshot and retries the failed request
+there. `demo-swap.sh 10 rollback` swaps in `core_v2_bad`, which crashes on
+its first read:
+
+```
+shell: swapped v1 -> v2 (pid 2129954), value=2999, ... switch took 8.6 us
+core v2 (pid 2129954): simulated bug, crashing
+shell: ROLLBACK: core v2 (pid 2129954) failed (No such process); v1 (pid 2105376) restored at value 2999 in 1.6 us
+shell: swapped v1 -> v2 (pid 2146338), value=6000, ... switch took 21.5 us
+TOTAL reads=10000 errors=0 gaps=0 missed=0 read_us avg=6.7 max=273.1  late_max_us=174.3  core=v2
+```
+
+The client sees no error, no counter gap and no missed deadline: the read
+that hit the crash took 273 µs instead of ~7 µs. Limitation: whatever the
+failed core changed before crashing is lost; the old core resumes from the
+handover snapshot.
+
 With 4 vCPUs at normal host priority the guest saw random 1-4 ms stalls
 (1-15 missed deadlines per 30 s) with or without swaps: host preemption of
 the VM, not the swap.
