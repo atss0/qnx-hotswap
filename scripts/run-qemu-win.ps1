@@ -62,7 +62,14 @@ function Start-Vm {
     Remove-Item $Log -ErrorAction SilentlyContinue
     # Forward slashes keep QEMU's option parser happy with Windows paths.
     $disk = (Join-Path $VmDir 'disk-qemu.qcow2') -replace '\\', '/'
-    $ifs  = (Join-Path $VmDir 'ifs.bin') -replace '\\', '/'
+    # WHPX needs the boot image with the corrected timer frequency (made by
+    # tools/patch_ifs_timer.py); with the original one the guest clock runs
+    # five times too slow. TCG uses the original image.
+    $ifsName = if ($Tcg -or $UserIrqchip) { 'ifs.bin' } else { 'ifs-whpx.bin' }
+    $ifs  = (Join-Path $VmDir $ifsName) -replace '\\', '/'
+    if (-not (Test-Path (Join-Path $VmDir $ifsName))) {
+        throw "$ifsName not found in $VmDir; run tools/patch_ifs_timer.py first"
+    }
     $logq = $Log -replace '\\', '/'
 
     $qemuArgs = @('-smp', $Cpus) + $accel + @(

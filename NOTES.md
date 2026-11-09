@@ -8,8 +8,8 @@ A stable shell process owns the path and channel and forwards messages to a
 swappable core process. On upgrade the shell queues requests, v1 hands its state
 to v2, the shell switches to v2, and v1 exits.
 
-Demo: a 1 kHz control loop reads a sensor driver; a live latency graph shows
-0 missed deadlines during the swap, compared with a stop-and-restart baseline.
+Demo: a 1 kHz control loop reads a simulated sensor driver during upgrades and
+failures, compared with two conventional upgrade baselines.
 
 ## Environment (WSL2 Ubuntu)
 - SDP 8.0.5: `~/qnx800` (`source ~/qnx800/qnxsdp-env.sh`, `qcc -Vgcc_ntox86_64`)
@@ -25,9 +25,14 @@ WSL does not expose AMD `svm` (Windows VBS), so the WSL VM is emulation only.
 - SSH 127.0.0.1:2223; `.wslconfig` has `networkingMode=mirrored`; `ssh qnxvm` points here
 - Windows OpenSSH needs `-c aes128-ctr` ("Corrupted MAC" otherwise)
 - Keep `kernel-irqchip=on`: with `off` timer interrupts are lost
-- One boot took 102 s instead of ~25 s: not investigated yet
+- A boot can take 100 s or more with WHPX; ssh is slow to connect, so `scripts/run-series.sh` runs a whole series in one session
+
+## Testing
+`make deploy`, then `scripts/run-all.sh [runs]` on the host: every scenario on
+the target, raw data in `results/latest`, summary with PASS/FAIL from
+`tools/summarize.py`. `/tmp` files on the target can stay owned by root after
+a sudo run: use new file names rather than reusing them.
 
 ## Next steps
-1. Spike: `/dev/counter` shell + core, client at 1000 reads/s, live v1→v2 swap; measure errors, state continuity, worst-case latency
-2. Stop-and-restart baseline, live latency graph
-3. Optional: emulation (TCG) timing numbers for comparison
+See "Limitations and next steps" in the README. Short list: per-open (OCB)
+state, `ionotify`/blocking reads, shared-memory checkpoints, a real sensor.

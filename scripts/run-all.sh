@@ -26,6 +26,18 @@ REMOTE=${REMOTE:-/tmp/hotswap}
 SUDO_PW=${SUDO_PW:-qnxuser}
 RDIR=/tmp/hs-series
 
+# Every number below depends on the target's clock, so check it first: a
+# wrong timer setting once made a VM's clock run five times too slow without
+# any other symptom (see tools/patch_ifs_timer.py).
+t0=$(date +%s%N)
+ssh "$TARGET" 'sleep 5'
+ms=$(( ($(date +%s%N) - t0) / 1000000 ))
+echo "target clock check: 'sleep 5' took $ms ms"
+if [ "$ms" -lt 4800 ] || [ "$ms" -gt 6500 ]; then
+    echo "target clock is wrong, not measuring" >&2
+    exit 2
+fi
+
 echo "running $# scenario(s) x $N on $TARGET ..."
 ssh "$TARGET" "rm -f /tmp/hs-series.log; cd $REMOTE; echo $SUDO_PW | sudo -S -p '' sh ./run-series.sh $N $RDIR $* > /tmp/hs-series.log 2>&1"
 

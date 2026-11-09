@@ -58,6 +58,28 @@ def percentile(sorted_values, q):
     return sorted_values[i]
 
 
+# The demo's upgrades happen about 3 s and 6 s into the client's run. These
+# windows also cover the 200 ms of simulated initialisation and a crash up to
+# 500 reads later. Comparing the same windows of a run without any upgrade
+# ("none") shows what the upgrade itself costs.
+UPGRADE_WINDOWS_MS = ((2900, 4000), (5900, 7000))
+
+
+def bad_ticks_in_windows(rows):
+    """Count ticks in the upgrade windows that overran the 1 ms period."""
+    count = 0
+    prev_t = None
+    for r in rows:
+        t = float(r["t_ms"])
+        gap = t - prev_t if prev_t is not None else 1.0
+        prev_t = t
+        if not any(lo <= t <= hi for lo, hi in UPGRADE_WINDOWS_MS):
+            continue
+        if float(r["late_us"]) + float(r["read_us"]) >= 1000 or gap >= 2.0:
+            count += 1
+    return count
+
+
 def read_csv(path):
     with open(path, newline="") as f:
         return list(csv.DictReader(f))
@@ -110,6 +132,7 @@ def analyse_run(scenario, run, directory):
         "breaks": [t[2] for t in totals],
         "uncal": [t[3] for t in totals],
         "missed": [t[4] for t in totals],
+        "window_missed": [bad_ticks_in_windows(rows) for rows in rows_per_client],
         "reconnects": [int(r[0]) for r in reconnects],
         "outage_ms": [float(r[1]) for r in reconnects],
         "switch_us": [float(x) for x in SWAP_RE.findall(log)],
@@ -189,6 +212,7 @@ def main():
             "failed reads": fmt_range(per_run("failed")),
             "seq breaks": fmt_range(per_run("breaks")),
             "missed deadlines": fmt_range(per_run("missed")),
+            "missed in upgrade windows": fmt_range(per_run("window_missed")),
             "longest outage ms": fmt_range(per_run("outage_ms"), 1),
             "reconnects": fmt_range(per_run("reconnects")),
             "read p50 us": f"{percentile(reads, 0.50):.1f}",
