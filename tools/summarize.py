@@ -80,6 +80,28 @@ def bad_ticks_in_windows(rows):
     return count
 
 
+# A sample whose error is above WRONG_MG is not noise or a filtered glitch
+# (those stay below ~200 mg): the driver's output is wrong. A few in a row are
+# allowed (v2 holds its last output for up to 3 samples while rejecting what
+# looks like a glitch); longer runs mean the output is stuck, e.g. on filter
+# state that went stale while the driver was down.
+WRONG_MG = 500
+MAX_WRONG_RUN = 5
+
+
+def longest_wrong_run(rows):
+    longest = run = 0
+    for r in rows:
+        if r["ok"] != "1":
+            continue
+        if abs(int(r["err_mg"])) > WRONG_MG:
+            run += 1
+            longest = max(longest, run)
+        else:
+            run = 0
+    return longest
+
+
 def read_csv(path):
     with open(path, newline="") as f:
         return list(csv.DictReader(f))
@@ -139,6 +161,7 @@ def analyse_run(scenario, run, directory):
         "rollback_us": [float(x) for x in ROLLBACK_RE.findall(log)],
         "holes": holes,
         "dups": dups,
+        "stuck": [longest_wrong_run(rows) for rows in rows_per_client],
         "complete": len(totals) >= 1 and len(totals) == len(rows_per_client),
         "exit": int(code.group(1)) if code else None,
     }
@@ -162,7 +185,14 @@ def check(scenario, run):
         problems.append(f"merged sequence: {run['holes']} holes, {run['dups']} duplicates")
     if max(run["uncal"], default=0) > 0 and want["failed"] == 0:
         problems.append(f"uncalibrated samples {run['uncal']}")
+    if not is_baseline(scenario) and max(run["stuck"], default=0) > MAX_WRONG_RUN:
+        problems.append(f"output wrong for {max(run['stuck'])} samples in a row")
     return problems
+
+
+def is_baseline(scenario):
+    want = EXPECT.get(scenario_base(scenario), {})
+    return want.get("failed", 0) is None and want.get("reconnects", 0) is None
 
 
 def fmt_range(values, digits=0):
@@ -223,7 +253,8 @@ def main():
                 if flat("swap_reads") else "-",
             "switch us": fmt_range(flat("switch_us"), 1),
             "rollback us": fmt_range(flat("rollback_us"), 1),
-            "merged holes/dups": f"{sum(holes)}/{sum(dups)}" if holes else "-",
+            "longest wrong output": fmt_range(per_run("stuck")),
+            "merged holes/dups":f"{sum(holes)}/{sum(dups)}" if holes else "-",
             "result": "baseline" if is_baseline else ("PASS" if ok else f"FAIL ({passed}/{len(results)})"),
         })
 

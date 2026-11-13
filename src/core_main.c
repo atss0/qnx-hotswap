@@ -112,6 +112,10 @@ int main(int argc, char **argv)
     int  prio = 60;
     long init_ms = 0;
     int  opt;
+
+    /* Fully buffered even on a terminal, so a driver's printf during a swap
+     * is only a memory copy; output is flushed at points outside the swap. */
+    setvbuf(stdout, NULL, _IOFBF, BUFSIZ);
     while ((opt = getopt(argc, argv, "n:p:i:")) != -1) {
         switch (opt) {
         case 'n': path = optarg; break;
@@ -266,6 +270,10 @@ int main(int argc, char **argv)
             }
             serving = 1;
             MsgReply(rcvid, EOK, NULL, 0);
+            /* The driver may have logged during import: write it out only
+             * now, so the output does not lengthen the swap (the shell and
+             * its clients wait for this reply). */
+            fflush(stdout);
             break;
         case CORE_OP_WRITE: {
             ssize_t n = (!serving || drv.write == NULL) ? -1

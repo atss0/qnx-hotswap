@@ -11,5 +11,6 @@ qemu.out
 # Python virtualenv for tools/plot.py
 .venv/
 
-# Raw sample files from demo runs
-results/
+# Raw sample files from demo runs; only the published series is tracked
+results/*
+!results/series-*/

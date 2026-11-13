@@ -1,0 +1,29 @@
+accel v1: calibrated, bias 152 mg (true 137), took 252 ms
+mono v1 (pid 49766431): serving /dev/accel
+t=1s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=2 err_mg rms=31.6 max=216  read_us max=110.7  late_max_us=984.9  v1
+t=2s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=1 err_mg rms=37.5 max=203  read_us max=56.5  late_max_us=796.3  v1
+=== make-before-break: starting accel_mono_v2, then stopping pid 49766431 ===
+t=3s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=1 err_mg rms=36.6 max=211  read_us max=91.6  late_max_us=903.0  v1
+accel v2: imported format 1 state: bias 152 mg, seq 0, filter 0 samples (converted from older format)
+mono v2 (pid 49791009): serving /dev/accel
+accel_client: read #4000 failed: Bad file descriptor; device unavailable
+t=4s reads=1000 failed=1 seq_breaks=0 uncal=0 missed=0 err_mg rms=45.5 max=234  read_us max=67.6  late_max_us=119.0  v1
+accel_client: device back after 1.1 ms (1 failed reads)
+accel_client: sequence break at #4001: 3999 -> 1
+accel_client: driver v1 -> v2 at read #4001, seq 1, error -55 mg
+t=5s reads=1000 failed=0 seq_breaks=1 uncal=0 missed=0 err_mg rms=18.4 max=55  read_us max=65.2  late_max_us=288.3  v2
+t=6s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=19.8 max=46  read_us max=59.1  late_max_us=108.0  v2
+t=7s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=19.2 max=44  read_us max=52.7  late_max_us=167.9  v2
+=== make-before-break: starting accel_mono_v1, then stopping pid 49791009 ===
+accel v1: imported format 1 state: bias 152 mg, seq 0, filter 0 samples
+mono v1 (pid 49815583): serving /dev/accel
+t=8s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=19.4 max=46  read_us max=122.2  late_max_us=362.8  v2
+accel_client: read #8007 failed: Bad file descriptor; device unavailable
+accel_client: device back after 1.8 ms (1 failed reads)
+accel_client: sequence break at #8008: 4006 -> 1
+accel_client: driver v2 -> v1 at read #8008, seq 1, error -28 mg
+t=9s reads=1000 failed=1 seq_breaks=1 uncal=0 missed=1 err_mg rms=53.4 max=405  read_us max=86.5  late_max_us=634.9  v1
+t=10s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=41.9 max=211  read_us max=113.6  late_max_us=0.0  v1
+TOTAL reads=10000 failed=2 seq_breaks=2 uncal=0 missed=5 err_mg rms=34.5 max=405  read_us max=122.2  late_max_us=984.9  v1
+TOTAL reconnects=2 longest_outage_ms=1.8
+=== [accel restart-mbb, 1 client(s)] exit code: 1 (0 = no failures, no state loss, no missed deadlines) ===

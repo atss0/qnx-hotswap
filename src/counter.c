@@ -56,7 +56,7 @@ static int counter_import(const struct core_state *st)
            DRV_VERSION, st->format, (unsigned long long)counter_value,
            (unsigned long long)generation,
            st->format < FMT_MAX ? ", converted from older format" : "");
-    fflush(stdout);
+    /* No fflush here: the host flushes after replying (part of a swap). */
 #endif
     return 0;
 }

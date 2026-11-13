@@ -5,7 +5,8 @@
  *   1. take a raw sample from the "hardware",
  *   2. subtract the zero-g bias measured during calibration,
  *   3. (v2 only) reject glitches: a sample that jumps more than
- *      SPIKE_LIMIT_MG away from the last output is replaced by that output,
+ *      SPIKE_LIMIT_MG away from the last output is replaced by that output
+ *      (unless the jump persists, then the filter restarts),
  *   4. smooth with a moving average over the last 8 samples,
  *   5. return the result with a sequence number.
  *
@@ -47,6 +48,7 @@
 #define CAL_SAMPLES     250     /* self-test samples, ~1 ms apart */
 #define SPIKE_LIMIT_MG  400     /* v2 glitch threshold; the true signal moves
                                    at most ~3 mg per ms */
+#define SPIKE_RUN       3       /* longer runs of "glitches" are real changes */
 
 /* ---- state ------------------------------------------------------------ */
 
@@ -179,7 +181,7 @@ static int accel_import(const struct core_state *cs)
            "filter %u samples%s\n", DRV_VERSION, cs->format, st.f1.bias_mg,
            (unsigned long long)st.f1.seq, st.f1.count,
            cs->format < FMT_MAX ? " (converted from older format)" : "");
-    fflush(stdout);
+    /* No fflush here: the host flushes after replying (part of a swap). */
     return 0;
 }
 
@@ -208,11 +210,25 @@ static ssize_t accel_read(void *buf, size_t max)
 
 #if DRV_VERSION >= 2
     /* Glitch rejection: physically impossible jumps are replaced by the
-     * last output instead of being fed into the average. */
+     * last output instead of being fed into the average. A glitch is a
+     * single sample; if the jump persists for more than SPIKE_RUN samples,
+     * the signal really is somewhere else (e.g. the filter history is old
+     * because the driver was down and resumed from a checkpoint), so the
+     * filter restarts from the new sample instead of holding a stale value.
+     * The run length is deliberately not part of the state. */
+    static uint32_t rejected_in_a_row;
     if (st.f1.count > 0 && (x - st.last_out_mg > SPIKE_LIMIT_MG ||
                             st.last_out_mg - x > SPIKE_LIMIT_MG)) {
-        x = st.last_out_mg;
-        st.spikes_rejected++;
+        if (++rejected_in_a_row <= SPIKE_RUN) {
+            x = st.last_out_mg;
+            st.spikes_rejected++;
+        } else {
+            st.f1.count = 0;
+            st.f1.idx = 0;
+            rejected_in_a_row = 0;
+        }
+    } else {
+        rejected_in_a_row = 0;
     }
 #endif
 

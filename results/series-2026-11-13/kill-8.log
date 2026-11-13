@@ -1,0 +1,34 @@
+shell: serving /dev/accel (pid 46477343), probation 2000 ms, read timeout 5000 us, checkpoint every 100 ms, waiting for a core
+accel v1: calibrated, bias 137 mg (true 137), took 251 ms
+shell: core v1 (pid 46489632) attached
+core v1 (pid 46489632): active on /dev/accel
+t=1s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=10 err_mg rms=30.9 max=202  read_us max=79.5  late_max_us=579.8  v1
+t=2s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=50.3 max=375  read_us max=72.9  late_max_us=418.9  v1
+=== hot swap: starting accel_v2 ===
+t=3s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=54.0 max=207  read_us max=75.7  late_max_us=550.1  v1
+accel v2: imported format 1 state: bias 137 mg, seq 3192, filter 8 samples (converted from older format)
+shell: swapped v1 -> v2 (pid 46514210), handed over 56 bytes of format 1 state (v1's own: format 1), switch took 25.4 us (export 8.2, import 17.1)
+core v2 (pid 46514210): active on /dev/accel
+accel_client: driver v1 -> v2 at read #3193, seq 3193, error -2 mg
+t=4s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=11.3 max=30  read_us max=87.5  late_max_us=354.4  v2
+t=5s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=11.2 max=35  read_us max=115.2  late_max_us=547.6  v2
+shell: swap to v2 committed, retiring v1 (pid 46489632)
+core v1 (pid 46489632): retired
+=== kill -9 core (pid 46514210) ===
+shell: core v2 (pid 46514210) lost (No such process); waiting for a new core, state checkpoint kept
+accel_client: read #5993 failed: Resource temporarily unavailable; device unavailable
+t=6s reads=1000 failed=8 seq_breaks=0 uncal=0 missed=0 err_mg rms=11.1 max=31  read_us max=242.0  late_max_us=452.2  v2
+=== hot swap: starting accel_v2 ===
+t=7s reads=1000 failed=1000 seq_breaks=0 uncal=0 missed=0 err_mg rms=0.0 max=0  read_us max=96.7  late_max_us=287.2  v2
+accel v2: imported format 2 state: bias 137 mg, seq 5982, filter 8 samples
+shell: core v2 (pid 46542880) attached, recovered format 2 state from checkpoint in 68.6 us
+core v2 (pid 46542880): active on /dev/accel
+accel_client: device back after 1205.1 ms (1205 failed reads)
+accel_client: sequence break at #7198: 5992 -> 5983
+t=8s reads=1000 failed=197 seq_breaks=1 uncal=0 missed=2 err_mg rms=115.0 max=1875  read_us max=87.1  late_max_us=555.6  v2
+t=9s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=11.6 max=42  read_us max=67.2  late_max_us=416.6  v2
+t=10s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=11.2 max=40  read_us max=73.6  late_max_us=316.2  v2
+TOTAL reads=10000 failed=1205 seq_breaks=1 uncal=0 missed=12 err_mg rms=44.8 max=1875  read_us max=242.0  late_max_us=579.8  v2
+TOTAL reconnects=0 longest_outage_ms=1205.1
+=== [accel kill, 1 client(s)] exit code: 1 (0 = no failures, no state loss, no missed deadlines) ===
+core v2 (pid 46542880): shell is gone, exiting

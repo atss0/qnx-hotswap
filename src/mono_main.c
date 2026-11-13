@@ -3,8 +3,9 @@
  * manager: one process owns the device path and the state.
  *
  * This is the baseline the hot-swap design is compared with. Upgrading it
- * means stopping the old process and starting the new one, which is what a
- * QNX High Availability Manager restart action does too:
+ * means stopping the old process and starting the new one, equivalent to a
+ * restart by a process supervisor such as the QNX High Availability Manager
+ * (ham is not in the quickstart image, so the demo script does the restart):
  *   - clients' open file descriptors die with the old process (reads fail,
  *     usually with EBADF) and they must reopen the device,
  *   - the path does not exist until the new process has initialised and

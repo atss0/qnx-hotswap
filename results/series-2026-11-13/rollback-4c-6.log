@@ -1,0 +1,71 @@
+shell: serving /dev/accel (pid 52416543), probation 2000 ms, read timeout 5000 us, checkpoint every 100 ms, waiting for a core
+accel v1: calibrated, bias 129 mg (true 137), took 253 ms
+shell: core v1 (pid 52428832) attached
+core v1 (pid 52428832): active on /dev/accel
+t=1s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=36.9 max=215  read_us max=195.8  late_max_us=406.3  v1
+t=1s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=37.1 max=211  read_us max=175.2  late_max_us=356.6  v1
+t=1s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=37.8 max=212  read_us max=175.3  late_max_us=469.2  v1
+t=1s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=11 err_mg rms=37.7 max=213  read_us max=138.3  late_max_us=999.1  v1
+t=2s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=41.6 max=212  read_us max=169.8  late_max_us=407.3  v1
+t=2s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=41.7 max=215  read_us max=154.0  late_max_us=375.9  v1
+t=2s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=44.0 max=211  read_us max=166.9  late_max_us=379.1  v1
+t=2s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=43.8 max=207  read_us max=161.1  late_max_us=368.7  v1
+t=3s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=38.7 max=205  read_us max=194.1  late_max_us=504.9  v1
+=== hot swap: starting accel_v2_bad ===
+t=3s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=38.3 max=207  read_us max=163.1  late_max_us=450.5  v1
+t=3s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=2 err_mg rms=38.6 max=203  read_us max=145.5  late_max_us=999.1  v1
+t=3s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=39.0 max=207  read_us max=136.9  late_max_us=432.6  v1
+accel v2: imported format 1 state: bias 129 mg, seq 12800, filter 8 samples (converted from older format)
+shell: swapped v1 -> v2 (pid 52465699), handed over 56 bytes of format 1 state (v1's own: format 1), switch took 47.8 us (export 5.4, import 42.5)
+core v2 (pid 52465699): active on /dev/accel
+core v2 (pid 52465699): simulated bug, crashing on read 1
+accel v1: imported format 1 state: bias 129 mg, seq 12800, filter 8 samples
+shell: ROLLBACK: core v2 (pid 52465699) failed (No such process); v1 (pid 52428832) restored from its handover snapshot in 12.8 us
+t=4s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=2 err_mg rms=40.9 max=214  read_us max=2010.5  late_max_us=517.2  v1
+t=4s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=2 err_mg rms=40.5 max=210  read_us max=2040.3  late_max_us=362.7  v1
+t=4s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=2 err_mg rms=40.2 max=214  read_us max=2007.3  late_max_us=482.3  v1
+t=4s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=4 err_mg rms=37.9 max=212  read_us max=2005.7  late_max_us=999.8  v1
+t=5s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=35.2 max=207  read_us max=164.9  late_max_us=0.0  v1
+t=5s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=32.9 max=212  read_us max=164.3  late_max_us=0.0  v1
+t=5s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=34.1 max=201  read_us max=135.3  late_max_us=478.6  v1
+t=5s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=33.9 max=205  read_us max=124.8  late_max_us=303.8  v1
+t=6s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=27.7 max=203  read_us max=163.3  late_max_us=0.0  v1
+t=6s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=27.0 max=202  read_us max=214.8  late_max_us=0.0  v1
+t=6s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=29.1 max=206  read_us max=143.2  late_max_us=519.8  v1
+=== hot swap: starting accel_v2 ===
+t=6s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=27.4 max=211  read_us max=174.8  late_max_us=586.6  v1
+accel v2: imported format 1 state: bias 129 mg, seq 24810, filter 8 samples (converted from older format)
+shell: swapped v1 -> v2 (pid 52482083), handed over 56 bytes of format 1 state (v1's own: format 1), switch took 60.2 us (export 6.0, import 54.3)
+core v2 (pid 52482083): active on /dev/accel
+accel_client: driver v1 -> v2 at read #6207, seq 24814, error 8 mg
+t=7s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=19.6 max=203  read_us max=230.7  late_max_us=0.0  v2
+accel_client: driver v1 -> v2 at read #6206, seq 24812, error 5 mg
+t=7s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=20.5 max=202  read_us max=211.5  late_max_us=0.0  v2
+accel_client: driver v1 -> v2 at read #6204, seq 24813, error 10 mg
+t=7s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=21.2 max=199  read_us max=180.6  late_max_us=492.8  v2
+accel_client: driver v1 -> v2 at read #6197, seq 24811, error 5 mg
+t=7s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=20.5 max=201  read_us max=171.9  late_max_us=487.0  v2
+t=8s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=12.7 max=36  read_us max=200.0  late_max_us=0.0  v2
+t=8s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=12.5 max=38  read_us max=255.0  late_max_us=0.0  v2
+t=8s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=2 err_mg rms=13.2 max=37  read_us max=152.2  late_max_us=995.1  v2
+t=8s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=13.1 max=37  read_us max=239.4  late_max_us=504.5  v2
+shell: swap to v2 committed, retiring v1 (pid 52428832)
+core v1 (pid 52428832): retired
+t=9s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=10.2 max=30  read_us max=205.1  late_max_us=0.0  v2
+t=9s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=10.1 max=30  read_us max=184.9  late_max_us=0.0  v2
+t=9s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=10.0 max=28  read_us max=140.9  late_max_us=556.4  v2
+t=9s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=9.8 max=29  read_us max=184.1  late_max_us=559.2  v2
+t=10s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=12.4 max=32  read_us max=186.7  late_max_us=0.0  v2
+TOTAL reads=10000 failed=0 seq_breaks=0 uncal=0 missed=2 err_mg rms=30.1 max=215  read_us max=2010.5  late_max_us=517.2  v2
+t=10s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=12.4 max=33  read_us max=200.6  late_max_us=0.0  v2
+TOTAL reads=10000 failed=0 seq_breaks=0 uncal=0 missed=2 err_mg rms=30.2 max=212  read_us max=2040.3  late_max_us=469.2  v2
+t=10s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=12.9 max=33  read_us max=138.5  late_max_us=339.6  v2
+TOTAL reads=10000 failed=0 seq_breaks=0 uncal=0 missed=6 err_mg rms=30.2 max=215  read_us max=2007.3  late_max_us=999.1  v2
+t=10s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=13.0 max=36  read_us max=214.4  late_max_us=402.0  v2
+TOTAL reads=10000 failed=0 seq_breaks=0 uncal=0 missed=15 err_mg rms=30.1 max=213  read_us max=2005.7  late_max_us=999.8  v2
+TOTAL reconnects=0 longest_outage_ms=0.0
+TOTAL reconnects=0 longest_outage_ms=0.0
+TOTAL reconnects=0 longest_outage_ms=0.0
+TOTAL reconnects=0 longest_outage_ms=0.0
+=== [accel rollback, 4 client(s)] exit code: 1 (0 = no failures, no state loss, no missed deadlines) ===
+core v2 (pid 52482083): shell is gone, exiting

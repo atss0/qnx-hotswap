@@ -1,0 +1,19 @@
+shell: serving /dev/accel (pid 40132639), probation 2000 ms, read timeout 5000 us, checkpoint every 100 ms, waiting for a core
+accel v1: calibrated, bias 143 mg (true 137), took 251 ms
+shell: core v1 (pid 40144928) attached
+core v1 (pid 40144928): active on /dev/accel
+t=1s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=36.0 max=205  read_us max=95.6  late_max_us=101.8  v1
+t=2s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=52.7 max=213  read_us max=100.5  late_max_us=228.2  v1
+t=3s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=38.3 max=204  read_us max=132.0  late_max_us=195.1  v1
+=== no event (baseline) ===
+t=4s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=29.8 max=204  read_us max=153.1  late_max_us=256.5  v1
+t=5s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=40.9 max=219  read_us max=133.5  late_max_us=148.6  v1
+t=6s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=38.3 max=210  read_us max=115.6  late_max_us=156.5  v1
+=== no event (baseline) ===
+t=7s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=15.2 max=36  read_us max=72.0  late_max_us=175.9  v1
+t=8s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=42.6 max=197  read_us max=80.6  late_max_us=288.9  v1
+t=9s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=49.1 max=229  read_us max=68.3  late_max_us=117.7  v1
+t=10s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=34.7 max=204  read_us max=85.8  late_max_us=340.0  v1
+TOTAL reads=10000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=39.0 max=229  read_us max=153.1  late_max_us=340.0  v1
+TOTAL reconnects=0 longest_outage_ms=0.0
+=== [accel none, 1 client(s)] exit code: 0 (0 = no failures, no state loss, no missed deadlines) ===

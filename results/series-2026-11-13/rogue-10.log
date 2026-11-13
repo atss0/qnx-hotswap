@@ -1,0 +1,30 @@
+shell: serving /dev/accel (pid 47878175), probation 2000 ms, read timeout 5000 us, checkpoint every 100 ms, waiting for a core
+accel v1: calibrated, bias 128 mg (true 137), took 251 ms
+shell: core v1 (pid 47890464) attached
+core v1 (pid 47890464): active on /dev/accel
+t=1s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=3 err_mg rms=40.3 max=202  read_us max=69.9  late_max_us=253.8  v1
+t=2s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=40.3 max=216  read_us max=83.2  late_max_us=225.2  v1
+=== rogue process attacks core (pid 47890464) ===
+rogue: chid 1 EXPORT: Operation not permitted
+rogue: chid 1 IMPORT: Operation not permitted
+rogue: chid 1 QUIT: Operation not permitted
+rogue: 3 of 3 attempts refused with EPERM
+t=3s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=2 err_mg rms=19.7 max=201  read_us max=63.6  late_max_us=874.4  v1
+t=4s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=41.5 max=344  read_us max=79.4  late_max_us=234.3  v1
+t=5s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=31.2 max=203  read_us max=80.4  late_max_us=302.8  v1
+t=6s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=37.8 max=212  read_us max=76.0  late_max_us=427.4  v1
+=== hot swap: starting accel_v2 ===
+accel v2: imported format 1 state: bias 128 mg, seq 6204, filter 8 samples (converted from older format)
+shell: swapped v1 -> v2 (pid 47931426), handed over 56 bytes of format 1 state (v1's own: format 1), switch took 118.3 us (export 43.4, import 74.9)
+core v2 (pid 47931426): active on /dev/accel
+accel_client: driver v1 -> v2 at read #6205, seq 6205, error -5 mg
+t=7s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=25.2 max=196  read_us max=72.4  late_max_us=173.1  v2
+t=8s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=17.4 max=39  read_us max=78.1  late_max_us=334.0  v2
+shell: swap to v2 committed, retiring v1 (pid 47890464)
+core v1 (pid 47890464): retired
+t=9s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=8.8 max=30  read_us max=109.9  late_max_us=248.7  v2
+t=10s reads=1000 failed=0 seq_breaks=0 uncal=0 missed=0 err_mg rms=17.2 max=38  read_us max=87.8  late_max_us=256.7  v2
+TOTAL reads=10000 failed=0 seq_breaks=0 uncal=0 missed=5 err_mg rms=30.1 max=344  read_us max=109.9  late_max_us=874.4  v2
+TOTAL reconnects=0 longest_outage_ms=0.0
+=== [accel rogue, 1 client(s)] exit code: 1 (0 = no failures, no state loss, no missed deadlines) ===
+core v2 (pid 47931426): shell is gone, exiting
